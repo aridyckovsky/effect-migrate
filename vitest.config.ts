@@ -1,25 +1,35 @@
-import { defineWorkspace } from "vitest/config"
+import { defineConfig } from "vitest/config"
 
-export default defineWorkspace([
-  {
-    extends: "./packages/core/vitest.config.ts",
-    test: {
-      name: "@effect-migrate/core",
-      root: "./packages/core"
-    }
-  },
-  {
-    extends: "./packages/cli/vitest.config.ts",
-    test: {
-      name: "@effect-migrate/cli",
-      root: "./packages/cli"
-    }
-  },
-  {
-    extends: "./packages/preset-basic/vitest.config.ts",
-    test: {
-      name: "@effect-migrate/preset-basic",
-      root: "./packages/preset-basic"
-    }
+export default defineConfig({
+  test: {
+    projects: [
+      {
+        test: {
+          name: "@effect-migrate/core",
+          root: "./packages/core",
+          environment: "node",
+          globals: true,
+          include: ["src/**/*.{test,spec}.ts", "test/**/*.{test,spec}.ts"]
+        }
+      },
+      {
+        test: {
+          name: "@effect-migrate/cli",
+          root: "./packages/cli",
+          environment: "node",
+          globals: true,
+          include: ["src/**/*.{test,spec}.ts", "test/**/*.{test,spec}.ts"]
+        }
+      },
+      {
+        test: {
+          name: "@effect-migrate/preset-basic",
+          root: "./packages/preset-basic",
+          environment: "node",
+          globals: true,
+          include: ["src/**/*.{test,spec}.ts", "test/**/*.{test,spec}.ts"]
+        }
+      }
+    ]
   }
-])
+})

@@ -17,7 +17,7 @@
     "build:types": "tsc -b",
     "build": "pnpm -r --filter '@effect-migrate/*' run build",
     "test": "pnpm -r run test",
-    "test:ci": "pnpm -r run test --run",
+    "test:ci": "pnpm -r run test:ci",
     "lint": "pnpm -r run lint",
     "lint:fix": "pnpm -r run lint:fix",
     "format": "pnpm lint:fix",

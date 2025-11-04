@@ -36,7 +36,8 @@
     "build:cjs": "babel build/esm --out-dir build/cjs --plugins babel-plugin-annotate-pure-calls,@babel/plugin-transform-modules-commonjs --source-maps && echo '{\"type\":\"commonjs\"}' > build/cjs/package.json",
     "build": "pnpm run clean && pnpm run build:ts && pnpm run build:esm && pnpm run build:cjs",
     "pack": "build-utils pack-v4",
-    "test": "vitest --run --passWithNoTests",
+    "test": "vitest",
+    "test:ci": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0 && prettier --check \"**/*.{json,md,yml,yaml}\"",
     "lint:fix": "eslint . --fix && prettier --write \"**/*.{json,md,yml,yaml}\""

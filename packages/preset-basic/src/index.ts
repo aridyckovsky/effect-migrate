@@ -12,4 +12,4 @@ export const presetBasic: Preset = {
 }
 
 export { boundaryRules } from "./boundaries.js"
-export { patternRules } from "./patterns.js"
+export { noAsyncAwait, patternRules } from "./patterns.js"
