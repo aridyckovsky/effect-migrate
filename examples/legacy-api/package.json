@@ -1,9 +1,9 @@
 {
-  "name": "example-team-dashboard",
+  "name": "example-legacy-api",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Team dashboard API - halfway migrated to Effect patterns",
+  "description": "Example project showing legacy API patterns",
   "scripts": {
     "audit": "effect-migrate audit",
     "audit:json": "effect-migrate audit --json"

@@ -36,27 +36,38 @@ This example demonstrates a project **in the middle of migration** to Effect pat
 
 ## Running Commands
 
-Build the CLI first:
 ```bash
-cd ../..
-pnpm --filter @effect-migrate/cli build
+# Install dependencies (links workspace packages)
+pnpm install
+
+# Run audit using TypeScript config
+pnpm audit
+
+# Or with JSON output
+pnpm audit:json
+
+# Or directly via CLI
+node ../../packages/cli/build/esm/index.js audit --config effect-migrate.config.ts
 ```
 
-Then from this directory:
+## Configuration
 
-```bash
-# Standard audit
-node ../../packages/cli/dist/index.js audit
+This example uses **TypeScript config** (`effect-migrate.config.ts`) for type safety:
 
-# Audit with Amp context output
-node ../../packages/cli/dist/index.js audit --amp
+```typescript
+import { defineConfig } from "@effect-migrate/core"
 
-# Metrics summary
-node ../../packages/cli/dist/index.js metrics
-
-# Metrics with Amp context
-node ../../packages/cli/dist/index.js metrics --amp
+export default defineConfig({
+  version: 1,
+  paths: {
+    root: "./src",
+    exclude: ["node_modules/**", "dist/**"]
+  },
+  patterns: [...]
+})
 ```
+
+The `defineConfig` helper provides TypeScript autocomplete and validation.
 
 ## What to Observe
 
