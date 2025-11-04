@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect"
 import { auditCommand } from "./commands/audit.js"
 import { initCommand } from "./commands/init.js"
 import { metricsCommand } from "./commands/metrics.js"
+import { threadCommand } from "./commands/thread.js"
 
 const mainCommand = Command.make("effect-migrate", {}, () =>
   Effect.gen(function*() {
@@ -15,7 +16,9 @@ const mainCommand = Command.make("effect-migrate", {}, () =>
     return 0
   }))
 
-const cli = mainCommand.pipe(Command.withSubcommands([auditCommand, initCommand, metricsCommand]))
+const cli = mainCommand.pipe(
+  Command.withSubcommands([auditCommand, initCommand, metricsCommand, threadCommand])
+)
 
 const program = Command.run(cli, {
   name: "effect-migrate",

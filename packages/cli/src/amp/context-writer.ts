@@ -47,6 +47,7 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import { readThreads } from "./thread-manager.js"
 
 /**
  * Thread reference schema for tracking Amp threads where migration work occurred.
@@ -101,7 +102,11 @@ export const ThreadReference = Schema.Struct({
   /** Files modified in this thread */
   filesChanged: Schema.optional(Schema.Array(Schema.String)),
   /** Rule IDs resolved or addressed in this thread */
-  rulesResolved: Schema.optional(Schema.Array(Schema.String))
+  rulesResolved: Schema.optional(Schema.Array(Schema.String)),
+  /** Tags for categorizing threads */
+  tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Scope filter for grouping threads */
+  scope: Schema.optional(Schema.Array(Schema.String))
 })
 
 /**
@@ -274,7 +279,12 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const errors = results.filter(r => r.severity === "error").length
     const warnings = results.filter(r => r.severity === "warning").length
 
-    // Create audit context (validated by schema)
+    // Read and attach threads if they exist
+    const threadsFile = yield* readThreads(outputDir).pipe(
+      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+    )
+
+    // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContext = {
       version: 1,
       toolVersion: "0.1.0",
@@ -293,8 +303,16 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       config: {
         rulesEnabled: Array.from(new Set(results.map(r => r.id))),
         failOn: [...(config.report?.failOn ?? ["error"])]
-      }
-      // threads: [] // Future: Populated by `effect-migrate thread add`
+      },
+      ...([...threadsFile.threads].length > 0 && {
+        threads: [...threadsFile.threads].map(entry => ({
+          url: entry.url,
+          timestamp: entry.createdAt,
+          ...(entry.description && { description: entry.description }),
+          ...(entry.tags && entry.tags.length > 0 && { tags: [...entry.tags] }),
+          ...(entry.scope && entry.scope.length > 0 && { scope: [...entry.scope] })
+        }))
+      })
     }
 
     // Encode audit context to JSON
