@@ -9,14 +9,12 @@
     "directory": "packages/core"
   },
   "type": "module",
-  "main": "./build/cjs/index.js",
-  "module": "./build/esm/index.js",
+  "main": "./build/esm/index.js",
   "types": "./build/esm/index.d.ts",
   "exports": {
     ".": {
       "types": "./build/esm/index.d.ts",
-      "import": "./build/esm/index.js",
-      "require": "./build/cjs/index.js"
+      "import": "./build/esm/index.js"
     }
   },
   "sideEffects": [],
@@ -33,8 +31,7 @@
     "clean": "rimraf build dist",
     "build:ts": "tsc -b tsconfig.build.json",
     "build:esm": "babel build/esm --out-dir build/esm --plugins babel-plugin-annotate-pure-calls --source-maps",
-    "build:cjs": "babel build/esm --out-dir build/cjs --plugins babel-plugin-annotate-pure-calls,@babel/plugin-transform-modules-commonjs --source-maps && echo '{\"type\":\"commonjs\"}' > build/cjs/package.json",
-    "build": "pnpm run clean && pnpm run build:ts && pnpm run build:esm && pnpm run build:cjs",
+    "build": "pnpm run clean && pnpm run build:ts && pnpm run build:esm",
     "pack": "build-utils pack-v4",
     "test": "vitest",
     "test:ci": "vitest run",
