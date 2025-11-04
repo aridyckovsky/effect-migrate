@@ -9,8 +9,11 @@ pnpm-lock.yaml
 package-lock.json
 yarn.lock
 
-# Generated package.json files in build output
-**/build/**/package.json
+# Generated files in build output
+build/**/*.json
+build/**/*.js
+build/**/*.d.ts
+build/**/*.map
 
 # TypeScript/JavaScript files formatted by ESLint (via dprint)
 *.ts
