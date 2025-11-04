@@ -6,7 +6,7 @@ import type { ImportIndexResult, Rule, RuleContext, RuleResult } from "../rules/
 import type { Config } from "../schema/Config.js"
 import { PathsSchema } from "../schema/Config.js"
 import { FileDiscovery, FileDiscoveryLive } from "./FileDiscovery.js"
-import { ImportIndex, type ImportIndexData, ImportIndexLive } from "./ImportIndex.js"
+import { ImportIndex, ImportIndexLive } from "./ImportIndex.js"
 
 export interface RuleRunnerService {
   /**
@@ -23,8 +23,6 @@ export const RuleRunnerLive = Layer.effect(
     const fileDiscovery = yield* FileDiscovery
     const importIndexService = yield* ImportIndex
 
-    let importIndexCache: ImportIndexData | null = null
-
     const runRules = (rules: Rule[], config: Config): Effect.Effect<RuleResult[]> =>
       Effect.gen(function*() {
         yield* Console.log(`Running ${rules.length} rules...`)
@@ -33,37 +31,27 @@ export const RuleRunnerLive = Layer.effect(
         const paths = config.paths ?? new PathsSchema({ exclude: PathsSchema.defaultExclude })
         const rootPath = paths.root ?? cwd
 
-        const listFiles = (globs: string[]) => fileDiscovery.listFiles(globs, [...paths.exclude])
+        const listFiles = (globs: string[]): Effect.Effect<string[], any> =>
+          fileDiscovery.listFiles(globs, [...paths.exclude])
 
         const readFile = (path: string) => fileDiscovery.readFile(path)
 
         const getImportIndex = (): Effect.Effect<ImportIndexResult, any> =>
           Effect.gen(function*() {
-            if (importIndexCache) {
-              return {
-                getImports: (file: string) =>
-                  importIndexService.getImports(file, importIndexCache!),
-                getImporters: (module: string) =>
-                  importIndexService.getImporters(module, importIndexCache!)
-              }
-            }
-
             yield* Console.log("Building import index...")
             const includePatterns = paths.include ?? ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
             const excludePatterns = [...paths.exclude]
-            const allFiles = yield* fileDiscovery.buildFileIndex(
-              Array.isArray(includePatterns) ? includePatterns : [includePatterns],
+
+            yield* importIndexService.getImportIndex(
+              includePatterns,
               excludePatterns,
               config.concurrency ?? 4
             )
-
-            importIndexCache = yield* importIndexService.buildIndex(allFiles)
-            yield* Console.log(`✓ Indexed imports from ${allFiles.size} files`)
+            yield* Console.log(`✓ Indexed imports`)
 
             return {
-              getImports: (file: string) => importIndexService.getImports(file, importIndexCache!),
-              getImporters: (module: string) =>
-                importIndexService.getImporters(module, importIndexCache!)
+              getImports: (file: string) => importIndexService.getImportsOf(file),
+              getImporters: (module: string) => importIndexService.getDependentsOf(module)
             }
           })
 
