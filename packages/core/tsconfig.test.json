@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["vitest/globals"]
+  },
+  "include": ["test/**/*", "src/**/*"],
+  "exclude": ["node_modules", "build", "test/fixtures/**"]
+}
