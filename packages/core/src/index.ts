@@ -282,4 +282,4 @@ export { RuleRunner, type RuleRunnerService } from "./services/RuleRunner.js"
  * }).pipe(Effect.provide(RuleRunnerLive))
  * ```
  */
-export { RuleRunnerLive, RuleRunnerLayer } from "./services/RuleRunner.js"
+export { RuleRunnerLayer, RuleRunnerLive } from "./services/RuleRunner.js"
