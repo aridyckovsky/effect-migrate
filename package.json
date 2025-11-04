@@ -1,0 +1,54 @@
+{
+  "name": "effect-migrate",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.14.0"
+  },
+  "volta": {
+    "node": "22.11.0",
+    "pnpm": "10.14.0"
+  },
+  "scripts": {
+    "clean": "pnpm -r run clean",
+    "build:types": "tsc -b",
+    "build": "pnpm -r --filter '@effect-migrate/*' run build",
+    "test": "vitest",
+    "test:ci": "vitest run",
+    "lint": "pnpm -r run lint",
+    "lint:fix": "pnpm -r run lint:fix",
+    "format": "pnpm lint:fix",
+    "format:check": "pnpm lint",
+    "typecheck": "pnpm -r run typecheck",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "pnpm build && changeset publish",
+    "docs": "pnpm -r --filter ./packages... exec docgen"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.28.3",
+    "@babel/core": "^7.28.5",
+    "@babel/plugin-transform-modules-commonjs": "^7.27.1",
+    "@babel/preset-env": "^7.28.5",
+    "@babel/preset-typescript": "^7.28.5",
+    "@changesets/changelog-github": "^0.5.1",
+    "@changesets/cli": "^2.29.7",
+    "@effect/build-utils": "^0.8.9",
+    "@effect/docgen": "^0.5.2",
+    "@effect/eslint-plugin": "^0.3.2",
+    "@effect/language-service": "^0.54.0",
+    "@effect/vitest": "^0.26.0",
+    "babel-plugin-annotate-pure-calls": "^0.4.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.1",
+    "prettier": "^3.6.2",
+    "rimraf": "^6.1.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3",
+    "vitest": "^3.2.4"
+  }
+}

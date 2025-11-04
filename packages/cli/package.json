@@ -1,0 +1,58 @@
+{
+  "name": "@effect-migrate/cli",
+  "version": "0.1.0",
+  "description": "CLI tool for Effect migration",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aridyckovsky/effect-migrate.git",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "bin": {
+    "effect-migrate": "./build/esm/index.js"
+  },
+  "main": "./build/cjs/index.js",
+  "module": "./build/esm/index.js",
+  "types": "./build/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/esm/index.d.ts",
+      "import": "./build/esm/index.js",
+      "require": "./build/cjs/index.js"
+    }
+  },
+  "sideEffects": [],
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.14.0"
+  },
+  "scripts": {
+    "clean": "rimraf build dist",
+    "build:ts": "tsc -b tsconfig.build.json",
+    "build:esm": "babel build/esm --out-dir build/esm --plugins babel-plugin-annotate-pure-calls --source-maps",
+    "build:cjs": "babel build/esm --out-dir build/cjs --plugins babel-plugin-annotate-pure-calls,@babel/plugin-transform-modules-commonjs --source-maps",
+    "build": "pnpm run clean && pnpm run build:ts && pnpm run build:esm && pnpm run build:cjs",
+    "pack": "build-utils pack-v4",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0 && prettier --check \"**/*.{json,md,yml,yaml}\"",
+    "lint:fix": "eslint . --fix && prettier --write \"**/*.{json,md,yml,yaml}\""
+  },
+  "dependencies": {
+    "@effect-migrate/core": "workspace:*",
+    "@effect/cli": "0.71.0",
+    "@effect/platform": "0.92.1",
+    "@effect/platform-node": "0.98.4",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "effect": "3.18.4",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@effect/vitest": "^0.26.0",
+    "@types/node": "^24.10.0",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
