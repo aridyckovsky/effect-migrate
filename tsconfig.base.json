@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    // Strict type checking
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noImplicitReturns": false,
+    "forceConsistentCasingInFileNames": true,
+
+    // Module resolution
+    "moduleDetection": "force",
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+
+    // Emit settings (disabled in base, enabled per package)
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // Interop and performance
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+
+    // Effect Language Service plugin
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["effect", "@effect/*"]
+      }
+    ]
+  }
+}
