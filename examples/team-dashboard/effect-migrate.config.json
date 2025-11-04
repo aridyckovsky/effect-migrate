@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "paths": {
+    "root": "./src",
+    "exclude": ["node_modules/**", "dist/**", "**/*.test.ts"]
+  },
+  "patterns": [
+    {
+      "id": "async-await-pattern",
+      "files": "**/*.ts",
+      "pattern": "async\\s+function",
+      "severity": "warning",
+      "message": "Consider migrating async/await to Effect.gen",
+      "tags": ["async", "migration"],
+      "docsUrl": "https://effect.website/docs/essentials/effect-type"
+    },
+    {
+      "id": "try-catch-pattern",
+      "files": "**/*.ts",
+      "pattern": "try\\s*\\{",
+      "severity": "warning",
+      "message": "Consider using Effect error handling instead of try/catch",
+      "tags": ["error-handling", "migration"]
+    },
+    {
+      "id": "console-log-pattern",
+      "files": "**/*.ts",
+      "pattern": "console\\.(log|error|warn|info)",
+      "severity": "warning",
+      "message": "Consider using Effect Console service",
+      "tags": ["logging", "migration"]
+    },
+    {
+      "id": "promise-then-pattern",
+      "files": "**/*.ts",
+      "pattern": "\\.then\\(",
+      "severity": "warning",
+      "message": "Consider using Effect instead of Promise.then chains",
+      "tags": ["async", "migration"]
+    },
+    {
+      "id": "new-promise-pattern",
+      "files": "**/*.ts",
+      "pattern": "new\\s+Promise\\s*\\(",
+      "severity": "error",
+      "message": "Avoid new Promise - use Effect.async or Effect.tryPromise",
+      "tags": ["async", "anti-pattern"]
+    }
+  ],
+  "boundaries": [
+    {
+      "id": "no-repository-in-controllers",
+      "from": "controllers/**",
+      "disallow": ["repositories/**"],
+      "severity": "error",
+      "message": "Controllers should not import repositories directly - use services layer",
+      "tags": ["architecture", "layering"]
+    }
+  ]
+}
