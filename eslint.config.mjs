@@ -10,9 +10,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.git/**",
       "**/build/**",
-      "**/test/**",
-      "**/*.test.ts",
-      "**/*.test.tsx",
+      "**/test/fixtures/**",
     ],
   },
   // Include Effect's dprint formatting config
@@ -23,7 +21,11 @@ export default tseslint.config(
     extends: [tseslint.configs.base],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: [
+          "./tsconfig.json",
+          "./packages/*/tsconfig.json",
+          "./packages/*/tsconfig.test.json",
+        ],
         tsconfigRootDir: import.meta.dirname,
       },
     },

@@ -52,7 +52,7 @@
     "@effect/vitest": "^0.26.0",
     "@types/node": "latest",
     "typescript": "latest",
-    "vitest": "latest"
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "effect": "^3.0.0"

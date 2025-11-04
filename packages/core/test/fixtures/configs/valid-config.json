@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "paths": {
+    "exclude": ["node_modules/**", "dist/**"],
+    "include": ["**/*.ts", "**/*.tsx"]
+  },
+  "patterns": [
+    {
+      "id": "no-async-await",
+      "pattern": "async\\s+function",
+      "files": "**/*.ts",
+      "message": "Use Effect.gen instead of async/await",
+      "severity": "warning"
+    }
+  ],
+  "concurrency": 4
+}

@@ -6,7 +6,7 @@ export interface RuleContext {
   cwd: string
 
   /** List files matching glob patterns (lazy) */
-  listFiles: (globs: string[]) => Effect.Effect<string[]>
+  listFiles: (globs: string[]) => Effect.Effect<string[], any>
 
   /** Read file content (lazy, cached) */
   readFile: (path: string) => Effect.Effect<string, any>
@@ -29,10 +29,10 @@ export interface RuleContext {
 
 export interface ImportIndexResult {
   /** Map of file -> imported modules */
-  getImports: (file: string) => string[]
+  getImports: (file: string) => Effect.Effect<ReadonlyArray<string>, any>
 
   /** Map of module -> files that import it */
-  getImporters: (module: string) => string[]
+  getImporters: (module: string) => Effect.Effect<ReadonlyArray<string>, any>
 }
 
 export interface RuleResult {

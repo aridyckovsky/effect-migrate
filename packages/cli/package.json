@@ -59,6 +59,6 @@
     "@effect/vitest": "^0.26.0",
     "@types/node": "^24.10.0",
     "typescript": "latest",
-    "vitest": "latest"
+    "vitest": "^3.2.4"
   }
 }

@@ -17,9 +17,9 @@ const mainCommand = Command.make("effect-migrate", {}, () =>
 
 const cli = mainCommand.pipe(Command.withSubcommands([auditCommand, initCommand, metricsCommand]))
 
-const runner = Command.run(cli, {
+const program = Command.run(cli, {
   name: "effect-migrate",
   version: "0.1.0"
-})
+})(process.argv)
 
-runner(process.argv).pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
+program.pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
