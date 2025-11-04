@@ -1,6 +1,6 @@
 import type { PlatformError } from "@effect/platform/Error"
-import { FileSystem } from "@effect/platform/FileSystem"
-import { Path } from "@effect/platform/Path"
+import * as FileSystem from "@effect/platform/FileSystem"
+import * as Path from "@effect/platform/Path"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -60,7 +60,7 @@ const matchGlob = (pattern: string, path: string): boolean => {
   return regex.test(path)
 }
 
-const getGlobBase = (pattern: string, pathSvc: typeof Path.Type): string => {
+const getGlobBase = (pattern: string, pathSvc: Path.Path): string => {
   const p = normalize(pattern)
   const firstMeta = p.search(/[*?[{]/)
   if (firstMeta === -1) {
@@ -85,8 +85,8 @@ const shouldInclude = (
 export const FileDiscoveryLive = Layer.effect(
   FileDiscovery,
   Effect.gen(function*() {
-    const fs = yield* FileSystem
-    const path = yield* Path
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
     const cache = new Map<string, string>()
 
     const isTextFile = (filePath: string): boolean => {
