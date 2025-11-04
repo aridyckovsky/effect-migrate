@@ -76,4 +76,6 @@ Examples use `workspace:*` dependencies which automatically resolve to the local
 }
 ```
 
+**Note:** Examples are not listed in `pnpm-workspace.yaml` to keep them standalone, but pnpm still resolves `workspace:*` dependencies from the monorepo root. This allows examples to consume local packages during development while remaining independent projects that don't participate in workspace-wide commands.
+
 When published to npm, these would resolve to actual versions like `"^0.1.0"`.

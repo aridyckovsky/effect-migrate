@@ -3,19 +3,63 @@ import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { ampOutOption } from "../amp/constants.js"
 import { addThread, readThreads } from "../amp/thread-manager.js"
 
-// Helper: Parse comma-separated string into array
-const parseCommaSeparated = (input: string | undefined): string[] | undefined => {
-  if (!input) return undefined
-  const parsed = input
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean)
-  // Deduplicate
-  return parsed.length > 0 ? Array.from(new Set(parsed)).sort() : undefined
-}
+// Schema: Comma-separated string to unique array
+const CommaSeparated = Schema.String.pipe(
+  Schema.transformOrFail(
+    Schema.Array(Schema.String),
+    {
+      strict: true,
+      decode: input =>
+        Effect.gen(function*() {
+          const split = input
+            .split(",")
+            .map(s => s.trim())
+            .filter(Boolean)
+          const unique = Array.from(new Set(split)).sort()
+          return yield* Effect.succeed(unique)
+        }),
+      encode: arr => Effect.succeed(arr.join(", "))
+    }
+  )
+)
+
+// Helper: Parse comma-separated tags with Option
+const parseTags = (
+  input: Option.Option<string>
+): Effect.Effect<ReadonlyArray<string>> =>
+  Option.match(input, {
+    onNone: () => Effect.succeed([]),
+    onSome: value =>
+      Schema.decodeUnknown(CommaSeparated)(value).pipe(
+        Effect.catchAll(error =>
+          Effect.gen(function*() {
+            yield* Console.error(`Invalid tags format: ${error}`)
+            return yield* Effect.succeed([])
+          })
+        )
+      )
+  })
+
+// Helper: Parse comma-separated scope with Option
+const parseScope = (
+  input: Option.Option<string>
+): Effect.Effect<ReadonlyArray<string>> =>
+  Option.match(input, {
+    onNone: () => Effect.succeed([]),
+    onSome: value =>
+      Schema.decodeUnknown(CommaSeparated)(value).pipe(
+        Effect.catchAll(error =>
+          Effect.gen(function*() {
+            yield* Console.error(`Invalid scope format: ${error}`)
+            return yield* Effect.succeed([])
+          })
+        )
+      )
+  })
 
 // ADD subcommand
 const threadAddCommand = Command.make(
@@ -40,17 +84,17 @@ const threadAddCommand = Command.make(
   },
   ({ url, tags, scope, description, ampOut }) =>
     Effect.gen(function*() {
-      // Parse comma-separated values - extract Option values
-      const tagsList = parseCommaSeparated(Option.getOrUndefined(tags))
-      const scopeList = parseCommaSeparated(Option.getOrUndefined(scope))
+      // Parse comma-separated values using Effect helpers
+      const tagsList = yield* parseTags(tags)
+      const scopeList = yield* parseScope(scope)
       const desc = Option.getOrUndefined(description)
 
       // Add thread - build input object with proper optional handling
       const input: { url: string; tags?: string[]; scope?: string[]; description?: string } = {
         url
       }
-      if (tagsList) input.tags = tagsList
-      if (scopeList) input.scope = scopeList
+      if (tagsList.length > 0) input.tags = Array.from(tagsList)
+      if (scopeList.length > 0) input.scope = Array.from(scopeList)
       if (desc) input.description = desc
 
       const result = yield* addThread(ampOut, input)

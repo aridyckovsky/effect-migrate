@@ -47,7 +47,7 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { readThreads } from "./thread-manager.js"
+import { readThreads, type ThreadsFile } from "./thread-manager.js"
 
 /**
  * Thread reference schema for tracking Amp threads where migration work occurred.
@@ -216,6 +216,34 @@ export type AmpContextIndex = typeof AmpContextIndex.Type
 export type ThreadReference = typeof ThreadReference.Type
 
 /**
+ * Pure mapping function to transform ThreadsFile to ReadonlyArray<ThreadReference>.
+ *
+ * Maps each thread entry to include url, timestamp, and optional fields
+ * (description, tags, scope). This function has no side effects and is purely functional.
+ *
+ * @param threadsFile - ThreadsFile from thread-manager
+ * @returns ReadonlyArray of ThreadReference objects for AmpAuditContext
+ *
+ * @category Pure Function
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * const threadsFile = { version: 1, threads: [...] }
+ * const auditThreads = toAuditThreads(threadsFile)
+ * ```
+ */
+export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadReference> => {
+  return threadsFile.threads.map(entry => ({
+    url: entry.url,
+    timestamp: entry.createdAt,
+    ...(entry.description && { description: entry.description }),
+    ...(entry.tags && entry.tags.length > 0 && { tags: entry.tags }),
+    ...(entry.scope && entry.scope.length > 0 && { scope: entry.scope })
+  }))
+}
+
+/**
  * Write Amp context files to the specified output directory.
  *
  * Generates multiple context files:
@@ -284,6 +312,9 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
     )
 
+    // Transform threads using pure mapping function
+    const auditThreads = toAuditThreads(threadsFile)
+
     // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContext = {
       version: 1,
@@ -304,15 +335,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
         rulesEnabled: Array.from(new Set(results.map(r => r.id))),
         failOn: [...(config.report?.failOn ?? ["error"])]
       },
-      ...([...threadsFile.threads].length > 0 && {
-        threads: [...threadsFile.threads].map(entry => ({
-          url: entry.url,
-          timestamp: entry.createdAt,
-          ...(entry.description && { description: entry.description }),
-          ...(entry.tags && entry.tags.length > 0 && { tags: [...entry.tags] }),
-          ...(entry.scope && entry.scope.length > 0 && { scope: [...entry.scope] })
-        }))
-      })
+      ...(auditThreads.length > 0 && { threads: auditThreads })
     }
 
     // Encode audit context to JSON

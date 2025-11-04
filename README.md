@@ -219,17 +219,17 @@ pnpm effect-migrate thread list --amp-out .amp/effect-migrate
 ```
 Tracked threads (2):
 
+t-def45678-9012-cdef-3456-789012345678
+  URL: https://ampcode.com/threads/T-def45678-9012-cdef-3456-789012345678
+  Created: 2025-11-04T23:23:28.651Z
+  Tags: core, refactor
+
 t-abc12345-6789-abcd-ef01-234567890abc
   URL: https://ampcode.com/threads/T-abc12345-6789-abcd-ef01-234567890abc
-  Created: 2025-11-04T10:00:00Z
+  Created: 2025-11-04T23:23:26.865Z
   Tags: api, migration
   Scope: src/api/*
   Description: Migrated fetchUser to Effect
-
-t-def45678-9012-cdef-3456-789012345678
-  URL: https://ampcode.com/threads/T-def45678-9012-cdef-3456-789012345678
-  Created: 2025-11-03T15:30:00Z
-  Tags: core, refactor
 ```
 
 Thread references are automatically included in `audit.json` context for Amp.

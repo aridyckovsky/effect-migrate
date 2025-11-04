@@ -5,6 +5,14 @@ import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
+// Strict thread URL pattern: http(s)://ampcode.com/threads/T-{uuid-v4}
+// UUID must match RFC 4122 format: 8-4-4-4-12 hex digits (lowercase)
+const THREAD_URL_RE =
+  /^https?:\/\/ampcode\.com\/threads\/T-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Branded type for validated thread URLs
+const ThreadUrl = Schema.String.pipe(Schema.pattern(THREAD_URL_RE), Schema.brand("ThreadUrl"))
+
 // Thread entry for threads.json
 export const ThreadEntry = Schema.Struct({
   id: Schema.String,
@@ -29,20 +37,30 @@ export type ThreadEntry = typeof ThreadEntry.Type
 export type ThreadsFile = typeof ThreadsFile.Type
 
 // Validate thread URL and extract ID (case-insensitive, normalize to lowercase)
+// Strictly matches http(s)://ampcode.com/threads/T-{uuid-v4} format
+// UUID must be valid RFC 4122 pattern: 8-4-4-4-12 hex digits
 export const validateThreadUrl = (url: string): Effect.Effect<{ id: string; url: string }, Error> =>
   Effect.gen(function*() {
-    const regex =
-      /^https:\/\/ampcode\.com\/threads\/(T-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/i
-    const match = url.match(regex)
-
-    if (!match) {
-      return yield* Effect.fail(
-        new Error(`Invalid thread URL. Expected format: https://ampcode.com/threads/T-{uuid}`)
+    // Decode using branded Schema for effectful validation
+    const decode = Schema.decodeUnknown(ThreadUrl)
+    const validatedUrl = yield* decode(url).pipe(
+      Effect.mapError(
+        () =>
+          new Error(
+            `Invalid thread URL. Expected format: http(s)://ampcode.com/threads/T-{uuid-v4}\n` +
+              `Example: https://ampcode.com/threads/T-12345678-abcd-1234-5678-123456789abc`
+          )
       )
-    }
+    )
 
-    const id = match[1].toLowerCase()
-    return { id, url }
+    // Extract ID using strict regex with capture group
+    const regex =
+      /^https?:\/\/ampcode\.com\/threads\/(T-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+    const match = validatedUrl.match(regex)
+
+    // Extract and normalize ID to lowercase
+    const id = match![1].toLowerCase()
+    return { id, url: validatedUrl }
   })
 
 // Read threads.json (returns empty if missing/invalid)

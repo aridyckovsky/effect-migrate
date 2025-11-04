@@ -421,8 +421,8 @@ describe("Thread Command Integration Tests", () => {
     it.effect("rejects invalid thread URLs", () =>
       Effect.gen(function*() {
         const invalidUrls = [
-          "https://example.com/threads/T-12345678-1234-1234-1234-123456789abc",
-          "http://ampcode.com/threads/T-12345678-1234-1234-1234-123456789abc", // http not https
+          "https://example.com/threads/T-12345678-1234-1234-1234-123456789abc", // Wrong domain
+          "ftp://ampcode.com/threads/T-12345678-1234-1234-1234-123456789abc", // Wrong protocol
           "https://ampcode.com/threads/invalid-format",
           "https://ampcode.com/threads/T-GGGGGGGG-GGGG-GGGG-GGGG-GGGGGGGGGGGG", // Invalid hex
           "https://ampcode.com/threads/T-123-456-789", // Wrong format
