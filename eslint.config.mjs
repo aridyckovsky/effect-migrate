@@ -10,6 +10,9 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.git/**",
       "**/build/**",
+      "**/test/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
     ],
   },
   // Include Effect's dprint formatting config
