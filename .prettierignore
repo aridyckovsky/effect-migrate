@@ -9,6 +9,9 @@ pnpm-lock.yaml
 package-lock.json
 yarn.lock
 
+# Generated package.json files in build output
+**/build/**/package.json
+
 # TypeScript/JavaScript files formatted by ESLint (via dprint)
 *.ts
 *.tsx
