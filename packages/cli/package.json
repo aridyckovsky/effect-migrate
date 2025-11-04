@@ -23,6 +23,11 @@
     }
   },
   "sideEffects": [],
+  "files": [
+    "build",
+    "LICENSE",
+    "README.md"
+  ],
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=10.14.0"
@@ -31,7 +36,7 @@
     "clean": "rimraf build dist",
     "build:ts": "tsc -b tsconfig.build.json",
     "build:esm": "babel build/esm --out-dir build/esm --plugins babel-plugin-annotate-pure-calls --source-maps",
-    "build:cjs": "babel build/esm --out-dir build/cjs --plugins babel-plugin-annotate-pure-calls,@babel/plugin-transform-modules-commonjs --source-maps",
+    "build:cjs": "babel build/esm --out-dir build/cjs --plugins babel-plugin-annotate-pure-calls,@babel/plugin-transform-modules-commonjs --source-maps && echo '{\"type\":\"commonjs\"}' > build/cjs/package.json",
     "build": "pnpm run clean && pnpm run build:ts && pnpm run build:esm && pnpm run build:cjs",
     "pack": "build-utils pack-v4",
     "test": "vitest",

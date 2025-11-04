@@ -16,6 +16,7 @@ export default tseslint.config(
   ...effectEslint.configs.dprint,
   {
     files: ["**/*.ts", "**/*.tsx"],
+    ignores: ["**/*.config.ts", "**/*.config.js", "**/*.config.mjs"],
     extends: [tseslint.configs.base],
     languageOptions: {
       parserOptions: {
