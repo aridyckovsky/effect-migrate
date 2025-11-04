@@ -50,11 +50,11 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Build
-        run: pnpm build
-
       - name: Lint
         run: pnpm lint
+
+      - name: Build
+        run: pnpm build
 
       - name: Test
         run: pnpm test:ci
