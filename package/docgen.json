@@ -1,0 +1,5 @@
+{
+  "srcDir": "./src",
+  "outDir": "./docs",
+  "exclude": ["**/*.test.ts", "**/__tests__/**", "**/internal/**"]
+}

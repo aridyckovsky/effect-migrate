@@ -1,7 +1,7 @@
 import type { Rule, RuleResult } from "@effect-migrate/core"
 import * as Effect from "effect/Effect"
 
-const noAsyncAwait: Rule = {
+export const noAsyncAwait: Rule = {
   id: "no-async-await",
   kind: "pattern",
   run: ctx =>

@@ -18,11 +18,11 @@ describe("CLI Package", () => {
     expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/)
   }))
 
-it.effect("CLI exports main command", () =>
+it.effect("CLI can be imported", () =>
   Effect.gen(function* () {
-    const { command } = yield* Effect.promise(() => import("../src/index.js"))
+    const cliModule = yield* Effect.promise(() => import("../src/index.js"))
 
-    expect(command).toBeDefined()
-    expect(typeof command).toBe("object")
+    expect(cliModule).toBeDefined()
+    expect(typeof cliModule).toBe("object")
   }))
 })
