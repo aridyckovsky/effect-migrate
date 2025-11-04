@@ -196,13 +196,51 @@ This creates `.amp/effect-migrate/context.json`:
 }
 ```
 
-### 4. Use Context in Amp
+### 4. Track Migration Work in Amp Threads
+
+Track Amp threads where migration work occurred:
+
+```bash
+pnpm effect-migrate thread add \
+  --url https://ampcode.com/threads/T-abc123... \
+  --tags "migration,api" \
+  --scope "src/api/*" \
+  --amp-out .amp/effect-migrate
+```
+
+List tracked threads:
+
+```bash
+pnpm effect-migrate thread list --amp-out .amp/effect-migrate
+```
+
+**Output:**
+
+```
+Tracked threads (2):
+
+t-abc12345-6789-abcd-ef01-234567890abc
+  URL: https://ampcode.com/threads/T-abc12345-6789-abcd-ef01-234567890abc
+  Created: 2025-11-04T10:00:00Z
+  Tags: api, migration
+  Scope: src/api/*
+  Description: Migrated fetchUser to Effect
+
+t-def45678-9012-cdef-3456-789012345678
+  URL: https://ampcode.com/threads/T-def45678-9012-cdef-3456-789012345678
+  Created: 2025-11-03T15:30:00Z
+  Tags: core, refactor
+```
+
+Thread references are automatically included in `audit.json` context for Amp.
+
+### 5. Use Context in Amp
 
 In your Amp thread:
 
 ```
 I'm migrating src/api/fetchUser.ts to Effect.
-Read @.amp/effect-migrate/context.json for current state.
+Read @.amp/effect-migrate/audit.json for current state.
 ```
 
 Amp will automatically:
@@ -216,15 +254,15 @@ Amp will automatically:
 
 ## Commands
 
-| Command                           | Description                            | Status      |
-| --------------------------------- | -------------------------------------- | ----------- |
-| `effect-migrate init`             | Create config file                     | 🚧 Planned  |
-| `effect-migrate audit`            | Detect migration issues                | 🚧 Building |
-| `effect-migrate metrics`          | Show migration progress                | 🚧 Planned  |
-| `effect-migrate docs`             | Validate documentation quality         | 🚧 Planned  |
-| `effect-migrate thread add <url>` | Track Amp thread for migration history | 🚧 Planned  |
-| `effect-migrate thread list`      | Show migration-related threads         | 🚧 Planned  |
-| `effect-migrate --help`           | Show help                              | ✅ Working  |
+| Command                                                    | Description                            | Status         |
+| ---------------------------------------------------------- | -------------------------------------- | -------------- |
+| `effect-migrate init`                                      | Create config file                     | ⏳ In Progress |
+| `effect-migrate audit`                                     | Detect migration issues                | 🧪 Dogfooding  |
+| `effect-migrate metrics`                                   | Show migration progress                | ⏳ In Progress |
+| `effect-migrate docs`                                      | Validate documentation quality         | ⏳ In Progress |
+| `effect-migrate thread add --url <url> [--tags] [--scope]` | Track Amp thread for migration history | 🧪 Dogfooding  |
+| `effect-migrate thread list [--json]`                      | Show migration-related threads         | 🧪 Dogfooding  |
+| `effect-migrate --help`                                    | Show help                              | 👍 Working     |
 
 ---
 
