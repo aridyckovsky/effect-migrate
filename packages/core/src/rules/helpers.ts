@@ -99,7 +99,7 @@ export const makeBoundaryRule = (input: MakeBoundaryRuleInput): Rule => ({
       const results: RuleResult[] = []
 
       for (const file of files) {
-        const imports = importIndex.getImports(file)
+        const imports = yield* importIndex.getImports(file)
 
         for (const importPath of imports) {
           const isDisallowed = input.disallow.some(pattern => {
@@ -109,10 +109,14 @@ export const makeBoundaryRule = (input: MakeBoundaryRuleInput): Rule => ({
 
           if (isDisallowed) {
             const content = yield* ctx.readFile(file)
+            // Strip pkg: prefix when searching in file content
+            const searchPath = importPath.startsWith("pkg:")
+              ? importPath.slice(4)
+              : importPath
 
             let lineNumber = 1
             for (const line of content.split("\n")) {
-              if (line.includes(importPath)) {
+              if (line.includes(searchPath)) {
                 const result: RuleResult = {
                   id: input.id,
                   ruleKind: "boundary",
