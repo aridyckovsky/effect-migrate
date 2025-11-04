@@ -7,7 +7,6 @@ import {
 } from "@effect-migrate/core"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
-import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import { writeAmpContext } from "../amp/context-writer.js"
@@ -114,7 +113,6 @@ export const auditCommand = Command.make(
       return 0
     }).pipe(
       Effect.provide(RuleRunnerLayer),
-      Effect.provide(NodeFileSystem.layer),
       Effect.catchAll(error =>
         Effect.gen(function*() {
           yield* Console.error(`Audit failed: ${error}`)
