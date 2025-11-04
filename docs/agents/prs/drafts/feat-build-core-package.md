@@ -3,10 +3,9 @@ created: 2025-11-04
 lastUpdated: 2025-11-04
 author: Generated via Amp (Oracle + Librarian)
 status: complete
-# TODO: Replace with actual thread for this
 thread: https://ampcode.com/threads/T-c8282916-89e9-43f5-9b26-9bbb7cfc79e7
-audience: Development team and AI coding agents
-tags: [pr-review, core-package, import-index, file-discovery]
+audience: Development team and reviewers
+tags: [pr-draft, core-package, import-index, file-discovery]
 ---
 
 # PR: Complete @effect-migrate/core Implementation

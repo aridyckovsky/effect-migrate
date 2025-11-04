@@ -123,6 +123,7 @@ docs/agents/
 
 **Drafts:**
 
+- **MUST include full YAML frontmatter** (created, lastUpdated, author, status, thread, audience, tags)
 - Well-structured PR descriptions
 - Include context, changes, and testing details
 - Follow PR template conventions
@@ -130,6 +131,7 @@ docs/agents/
 
 **Reviews:**
 
+- **MUST include full YAML frontmatter** (created, lastUpdated, author, status, thread, audience, tags)
 - Comprehensive file-by-file analysis
 - Identify key functionality and questionable code
 - Include improvement suggestions
@@ -447,6 +449,12 @@ in-progress → abandoned (→ requires post-mortem)
 draft → complete
 ```
 
+**PR Documentation:**
+
+```
+draft → complete
+```
+
 ---
 
 ## Best Practices
@@ -521,15 +529,24 @@ Key concepts:
 
 ### Good Example Headers
 
+**IMPORTANT:** These are example templates. Each document must use its own accurate:
+
+- `created` and `lastUpdated` dates (YYYY-MM-DD format)
+- `thread` URL from the actual Amp thread where the work was done
+- `audience` and `tags` appropriate to the document
+- `status` must be correct and accounted for accuracy
+- `author` must be the agent(s) and/or the developer
+- `related` must be actually related
+
 **Concept:**
 
 ```yaml
 ---
-created: 2025-11-04
-lastUpdated: 2025-11-04
+created: 2025-11-04 # Use actual creation date
+lastUpdated: 2025-11-04 # Use actual last update date
 author: Generated via Amp (Oracle + AI analysis)
 status: complete
-thread: https://ampcode.com/threads/T-38c593cf-0e0f-4570-ad73-dfc2c3b1d6c9
+thread: https://ampcode.com/threads/T-38c593cf-0e0f-4570-ad73-dfc2c3b1d6c9 # Use actual thread URL
 audience: Migration developers and Amp coding agents
 related: ../plans/thread-command.md
 ---
@@ -558,6 +575,34 @@ author: Team Discussion
 status: abandoned
 thread: https://ampcode.com/threads/T-original-uuid
 postMortem: ../post-mortem/regex-boundary-approach.md
+---
+```
+
+**PR Draft:**
+
+```yaml
+---
+created: 2025-11-04
+lastUpdated: 2025-11-04
+author: Generated via Amp
+status: complete
+thread: https://ampcode.com/threads/T-f57a4529-ce92-4ba3-9d68-01eda86dc1fb
+audience: Development team and reviewers
+tags: [pr-draft, thread-command, feature-implementation]
+---
+```
+
+**PR Review:**
+
+```yaml
+---
+created: 2025-11-04
+lastUpdated: 2025-11-04
+author: Generated via Amp (Review)
+status: complete
+thread: https://ampcode.com/threads/T-f57a4529-ce92-4ba3-9d68-01eda86dc1fb
+audience: Development team and AI coding agents
+tags: [pr-review, thread-command, amp-integration, context-output]
 ---
 ```
 
