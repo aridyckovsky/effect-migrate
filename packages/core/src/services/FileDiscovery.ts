@@ -125,8 +125,17 @@ export const FileDiscoveryLive = Layer.effect(
               const full = normalize(path.join(dirAbs, entry))
               const stat = yield* fs.stat(full)
               if (stat.type === "Directory") {
-                const sub = yield* walk(full)
-                out.push(...sub)
+                // Check if directory itself is excluded before recursing
+                const relDir = normalize(path.relative(cwdNorm, full))
+                const dirPatterns = [`${relDir}/**`, `**/${entry}/**`, `${entry}/**`]
+                const isExcluded = dirPatterns.some(pat =>
+                  excludePats.some(excl => matchGlob(excl, pat))
+                )
+
+                if (!isExcluded) {
+                  const sub = yield* walk(full)
+                  out.push(...sub)
+                }
               } else if (stat.type === "File") {
                 const rel = normalize(path.relative(cwdNorm, full))
                 if (shouldInclude(full, rel, includePats, excludePats)) {

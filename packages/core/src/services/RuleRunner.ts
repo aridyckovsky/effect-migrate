@@ -1,3 +1,4 @@
+import * as Path from "@effect/platform/Path"
 import * as Console from "effect/Console"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -22,6 +23,7 @@ export const RuleRunnerLive = Layer.effect(
   Effect.gen(function*() {
     const fileDiscovery = yield* FileDiscovery
     const importIndexService = yield* ImportIndex
+    const pathSvc = yield* Path.Path
 
     const runRules = (rules: Rule[], config: Config): Effect.Effect<RuleResult[]> =>
       Effect.gen(function*() {
@@ -96,7 +98,16 @@ export const RuleRunnerLive = Layer.effect(
         const allResults = results.flat()
         yield* Console.log(`✓ Complete: ${allResults.length} total findings`)
 
-        return allResults
+        // Normalize file paths to be relative to cwd (project root)
+        const normalizedResults = allResults.map(result => {
+          if (result.file) {
+            const relativePath = pathSvc.relative(cwd, result.file)
+            return { ...result, file: relativePath }
+          }
+          return result
+        })
+
+        return normalizedResults
       })
 
     return { runRules }

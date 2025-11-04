@@ -60,7 +60,9 @@ export const loadConfig = (configPath: string) =>
             try: () => import(fileUrl),
             catch: error =>
               new ConfigLoadError({
-                message: `Failed to load config module: ${configPath}`,
+                message: `Failed to load config module: ${configPath}. Error: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
                 cause: error
               })
           }).pipe(Effect.ensuring(Effect.sync(() => unregister())))
