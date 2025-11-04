@@ -1,40 +1,90 @@
+<div align="center">
+
 # effect-migrate
+
+**TypeScript migration toolkit for adopting Effect with Amp coding agents**
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![Effect](https://img.shields.io/badge/Effect-3.x-purple)](https://effect.website)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[Quick Start](#quick-start) • [Documentation](#documentation) • [Packages](#packages) • [Contributing](#contributing)
+
+</div>
+
+---
 
 > **⚠️ Early Stage Development**  
 > This project is in active development. Core architecture is in place, but features are not yet fully implemented. Contributions and feedback welcome!
 
-A migration toolkit for TypeScript projects adopting [Effect-TS](https://effect.website), designed to help teams transition from traditional patterns (Promises, async/await, try/catch) to Effect's composable, type-safe approach.
+## What is effect-migrate?
 
-## Why effect-migrate?
+**effect-migrate** helps teams migrate TypeScript codebases to [Effect-TS](https://effect.website) by detecting legacy patterns, enforcing architectural boundaries, and providing structured context for [Amp](https://ampcode.com) coding agents.
 
-Migrating to Effect is powerful but challenging. effect-migrate provides:
+### Key Features
 
-- **Pattern Detection**: Identify legacy async/await, Promise, and error handling patterns that need migration
-- **Architectural Boundaries**: Enforce clean separation between migrated Effect code and legacy code
-- **Migration Tracking**: Monitor progress with metrics and completion percentages
-- **AI Agent Context**: Generate structured, persistent context files that keep AI coding agents (Amp, Cursor, etc.) informed across sessions—eliminating repeated explanations
-- **Extensible Rules**: Create custom migration rules and share presets with your team
+- 🔍 **Pattern Detection** — Identify legacy async/await, Promise, and error handling patterns
+- 🏗️ **Boundary Enforcement** — Maintain clean separation between Effect and legacy code
+- 📊 **Migration Tracking** — Monitor progress with metrics and completion percentages
+- 🤖 **Amp Context Generation** — Generate structured context files that keep Amp informed across sessions
+- 🔌 **Extensible Rules** — Create custom rules and share presets with your team
+- ⚡ **Built with Effect** — Dogfoods Effect patterns: `Effect.gen`, Layers, Services, and Schema validation
 
-## Architecture
+---
 
-effect-migrate is built as a monorepo with three core packages:
+## Why Use effect-migrate with Amp?
+
+Migrating to Effect is powerful but challenging. When working with Amp, you typically need to re-explain your migration strategy in every new thread:
+
+**Traditional workflow (without effect-migrate):**
 
 ```
-@effect-migrate/
-├── core/           # Reusable migration engine
-├── cli/            # Command-line interface
-└── preset-basic/   # Default Effect migration rules
+You: "We're migrating to Effect. Don't use async/await in migrated files."
+Amp: [suggests async function]
+You: "No, I said use Effect.gen instead"
+Amp: [fixes it]
+[Next thread, next day...]
+You: "Remember we're migrating to Effect..."
 ```
 
-### Core Principles
+**With effect-migrate:**
 
-1. **Effect-First**: Built entirely with Effect, using `Effect.gen`, Layers, and Services
-2. **Schema-Driven**: Configuration validated with `effect/Schema` for type-safety
-3. **Platform-Agnostic**: Uses `@effect/platform` abstractions for cross-platform compatibility
-4. **Resource-Safe**: Lazy file loading and configurable concurrency to handle large codebases
-5. **Composable**: Plugin architecture for custom rules and presets
+```bash
+$ effect-migrate audit --amp-out .amp/effect-migrate
+```
 
-## Installation
+```
+You: @.amp/effect-migrate/context.json
+Amp: [automatically understands migration state, suggests Effect patterns]
+```
+
+**effect-migrate** eliminates repetition by:
+
+- ✅ Maintaining persistent migration context that Amp reads automatically
+- ✅ Tracking which files are migrated vs. legacy
+- ✅ Enforcing rules so Amp suggests the right patterns
+- ✅ Providing an audit trail of migration work across Amp threads
+- ✅ Sharing consistent context when teammates collaborate
+
+---
+
+## Packages
+
+effect-migrate is a monorepo with three core packages:
+
+| Package                                                     | Description                                                  | Status         |
+| ----------------------------------------------------------- | ------------------------------------------------------------ | -------------- |
+| **[@effect-migrate/core](./packages/core)**                 | Migration engine with services, rules, and schema validation | 🟡 In Progress |
+| **[@effect-migrate/cli](./packages/cli)**                   | Command-line interface built with `@effect/cli`              | 🟡 In Progress |
+| **[@effect-migrate/preset-basic](./packages/preset-basic)** | Default Effect migration rules                               | 🟡 In Progress |
+
+Each package includes its own AGENTS.md file with detailed development guidance.
+
+---
+
+## Quick Start
+
+### Installation
 
 > **Note**: Not yet published to npm. Clone and build locally:
 
@@ -45,15 +95,13 @@ pnpm install
 pnpm build
 ```
 
-## Quick Start
-
 ### 1. Initialize Configuration
 
 ```bash
 pnpm effect-migrate init
 ```
 
-This creates `effect-migrate.config.ts` with example rules:
+This creates `effect-migrate.config.ts` with type-safe configuration:
 
 ```typescript
 import { defineConfig } from "@effect-migrate/core"
@@ -63,13 +111,12 @@ export default defineConfig({
   paths: {
     root: ".",
     include: ["src/**/*.ts", "src/**/*.tsx"],
-    exclude: ["node_modules/**", "dist/**", ".next/**"]
+    exclude: ["node_modules/**", "dist/**"]
   },
   patterns: [
     {
       id: "no-async-await",
       pattern: "async\\s+function",
-      files: "**/*.ts",
       message: "Replace async/await with Effect.gen",
       severity: "warning",
       docsUrl: "https://effect.website/docs/guides/essentials/async"
@@ -86,8 +133,6 @@ export default defineConfig({
   ]
 })
 ```
-
-The `defineConfig` helper provides type-safety and validation via `effect/Schema`. Your config is loaded and validated at runtime, catching errors early.
 
 ### 2. Run Migration Audit
 
@@ -117,57 +162,25 @@ Errors: 1
 Warnings: 1
 ```
 
-### 3. Track Migration Progress
-
-```bash
-pnpm effect-migrate metrics
-```
-
-## Amp Integration
-
-effect-migrate is purpose-built to work with [Amp](https://ampcode.com), providing persistent migration context that survives across coding sessions. This eliminates the need to repeatedly explain "we're migrating to Effect" in every thread.
-
-### Generate Context Files
-
-Run audit with the `--amp-out` flag to generate structured context:
+### 3. Generate Amp Context
 
 ```bash
 pnpm effect-migrate audit --amp-out .amp/effect-migrate
 ```
 
-This creates `.amp/effect-migrate/context.json` with your migration state:
+This creates `.amp/effect-migrate/context.json`:
 
 ```json
 {
   "version": 1,
   "timestamp": "2025-01-03T10:00:00Z",
   "projectPath": "/Users/you/project",
-  "effectVersion": { "from": "2.x", "to": "3.x" },
   "migrationState": {
     "phase": "pattern-detection",
     "completedModules": ["src/models/user.ts"],
-    "pendingModules": ["src/api/fetchUser.ts"],
-    "breakingChanges": [
-      {
-        "file": "src/api/fetchUser.ts",
-        "pattern": "async function",
-        "replacement": "Effect.gen",
-        "status": "pending"
-      }
-    ]
+    "pendingModules": ["src/api/fetchUser.ts"]
   },
   "findings": {
-    "byFile": {
-      "src/api/fetchUser.ts": [
-        {
-          "id": "no-async-await",
-          "severity": "warning",
-          "message": "Replace async/await with Effect.gen",
-          "line": 23,
-          "docsUrl": "https://effect.website/docs/guides/essentials/async"
-        }
-      ]
-    },
     "summary": {
       "errors": 1,
       "warnings": 3,
@@ -179,149 +192,45 @@ This creates `.amp/effect-migrate/context.json` with your migration state:
   "recommendations": [
     "Convert async/await functions to Effect.gen",
     "Replace node:fs imports with @effect/platform/FileSystem"
-  ],
-  "nextActions": [
-    "Fix error in src/services/FileService.ts:5",
-    "Review 3 remaining warnings",
-    "Run 'effect-migrate metrics' to track progress"
   ]
 }
 ```
 
-**Using with Amp:**
+### 4. Use Context in Amp
 
-Attach the context file to your Amp threads, or reference it in prompts:
-
-```
-I'm working on migrating this project to Effect. 
-Read @.amp/effect-migrate/context.json for current migration state.
-```
-
-### Using Context with Amp
-
-In your Amp threads, reference the context file:
+In your Amp thread:
 
 ```
-I'm working on migrating this project to Effect. 
-Read @.amp/effect-migrate/context.json for current migration state.
+I'm migrating src/api/fetchUser.ts to Effect.
+Read @.amp/effect-migrate/context.json for current state.
 ```
 
-Amp will automatically understand:
-- Which files are migrated vs. legacy
-- What patterns to avoid (based on active rules)
-- Migration progress and next steps
-- Previous Amp threads where migration work happened
+Amp will automatically:
 
-### Track Amp Thread History
+- Know which files are migrated vs. legacy
+- Suggest Effect patterns based on active rules
+- Track progress and next steps
+- Reference previous Amp threads where migration work occurred
 
-effect-migrate helps you maintain a history of Amp threads where migration work happened:
-
-```bash
-# Add the current Amp thread to migration context
-effect-migrate thread add https://ampcode.com/threads/T-abc123-4567 \
-  --description "Migrated user model to Schema"
-
-# List all threads related to this migration
-effect-migrate thread list
-
-# Output:
-# Migration Threads:
-# 1. [2025-01-15] Migrated user model to Schema
-#    https://ampcode.com/threads/T-abc123-4567
-#    Files: src/models/user.ts (3 changes)
-# 
-# 2. [2025-01-16] Fixed FileSystem boundary violations
-#    https://ampcode.com/threads/T-def789-0123
-#    Files: src/services/FileService.ts (5 changes)
-```
-
-The context file automatically includes thread references:
-
-```json
-{
-  "version": 1,
-  "migrationState": { /* ... */ },
-  "threads": [
-    {
-      "url": "https://ampcode.com/threads/T-abc123-4567",
-      "timestamp": "2025-01-15T14:30:00Z",
-      "description": "Migrated user model to Schema",
-      "filesChanged": ["src/models/user.ts"],
-      "rulesResolved": ["no-async-await", "no-promise-constructor"]
-    }
-  ]
-}
-```
-
-### Why This Matters
-
-**Without effect-migrate context:**
-- ❌ "We're migrating to Effect" (repeated every thread)
-- ❌ "Don't use async/await in migrated files" (repeated every thread)
-- ❌ Manual progress tracking in separate docs
-- ❌ Amp suggests patterns you're actively migrating away from
-- ❌ Lost context when sharing threads with teammates
-
-**With effect-migrate context:**
-- ✅ Amp reads migration state automatically from context file
-- ✅ Knows which files are migrated vs. legacy
-- ✅ Suggests Effect patterns in migrated code automatically
-- ✅ Tracks progress with metrics and completion percentages
-- ✅ Maintains audit trail of which Amp threads did which work
-- ✅ Teammates opening shared threads see full migration context
-- ✅ Consistent terminology across all threads (rule IDs, severity)
+---
 
 ## Commands
 
-| Command                           | Description                                | Status      |
-| --------------------------------- | ------------------------------------------ | ----------- |
-| `effect-migrate init`             | Create config file                         | 🚧 Planned  |
-| `effect-migrate audit`            | Detect migration issues                    | 🚧 Building |
-| `effect-migrate metrics`          | Show migration progress                    | 🚧 Planned  |
-| `effect-migrate docs`             | Validate documentation quality             | 🚧 Planned  |
-| `effect-migrate thread add <url>` | Track Amp thread for migration history     | 🚧 Planned  |
-| `effect-migrate thread list`      | Show all threads related to migration      | 🚧 Planned  |
-| `effect-migrate --help`           | Show help                                  | ✅ Working  |
+| Command                           | Description                            | Status      |
+| --------------------------------- | -------------------------------------- | ----------- |
+| `effect-migrate init`             | Create config file                     | 🚧 Planned  |
+| `effect-migrate audit`            | Detect migration issues                | 🚧 Building |
+| `effect-migrate metrics`          | Show migration progress                | 🚧 Planned  |
+| `effect-migrate docs`             | Validate documentation quality         | 🚧 Planned  |
+| `effect-migrate thread add <url>` | Track Amp thread for migration history | 🚧 Planned  |
+| `effect-migrate thread list`      | Show migration-related threads         | 🚧 Planned  |
+| `effect-migrate --help`           | Show help                              | ✅ Working  |
 
-## Package Status
-
-### @effect-migrate/core
-
-**Status**: 🟡 Core architecture complete, rule execution in progress
-
-**Implemented:**
-- ✅ Service layer (FileDiscovery, ImportIndex, RuleRunner)
-- ✅ Schema validation for configs
-- ✅ Rule interface and helpers
-- ✅ Lazy file loading with caching
-- 🚧 Pattern rule execution
-- 🚧 Boundary rule execution
-
-### @effect-migrate/cli
-
-**Status**: 🟡 Command structure in place, integration in progress
-
-**Implemented:**
-- ✅ `@effect/cli` command structure
-- ✅ Options and args parsing
-- ✅ Console and JSON formatters
-- 🚧 Audit command implementation
-- 🚧 Amp context writer
-- 📋 Metrics command
-- 📋 Init command
-
-### @effect-migrate/preset-basic
-
-**Status**: 🟡 Preset structure defined, rules need implementation
-
-**Planned Rules:**
-- Pattern detection (async/await, Promise, try/catch)
-- Boundary enforcement (no direct Node.js imports)
-- Effect interop patterns (Effect.runPromise usage)
+---
 
 ## Rule System
 
-Rules detect migration issues and can be shared as presets:
+Rules detect migration issues and can be shared as presets. See [@effect-migrate/preset-basic](./packages/preset-basic) for examples.
 
 ```typescript
 import { makePatternRule } from "@effect-migrate/core"
@@ -340,12 +249,56 @@ export const noAsyncAwait = makePatternRule({
 
 ### Rule Types
 
-| Type       | Purpose                                  | Example                                       |
-| ---------- | ---------------------------------------- | --------------------------------------------- |
-| `pattern`  | Detect code patterns via regex           | async/await, Promise constructors, try/catch  |
-| `boundary` | Enforce architectural constraints        | No node:* imports in migrated code            |
-| `docs`     | Validate documentation during migration  | Required spec files, no leaked secrets        |
-| `metrics`  | Track migration completion               | Files with @migration-status markers          |
+| Type       | Purpose                                 | Example                                      |
+| ---------- | --------------------------------------- | -------------------------------------------- |
+| `pattern`  | Detect code patterns via regex          | async/await, Promise constructors, try/catch |
+| `boundary` | Enforce architectural constraints       | No node:\* imports in migrated code          |
+| `docs`     | Validate documentation during migration | Required spec files, no leaked secrets       |
+| `metrics`  | Track migration completion              | Files with @migration-status markers         |
+
+---
+
+## Real-World Example
+
+For a complete walkthrough, see this [Amp thread demonstrating effect-migrate on a realistic project](https://ampcode.com/threads/T-2e877789-12a8-41af-ad0b-de1361897ea8).
+
+The example shows:
+
+- Setting up a **partially migrated codebase** (`team-dashboard`) with mixed legacy and Effect code
+- Running **audit** to find 29 findings (3 errors, 26 warnings) across async/await, try/catch, and boundary violations
+- Generating **Amp context** with `--amp-out .amp` for persistent migration state
+- Using **metrics** to track 42% migration progress with badges
+
+**Key commands from the example:**
+
+```bash
+# Standard audit
+effect-migrate audit --config effect-migrate.config.json
+
+# Generate Amp context
+effect-migrate audit --config effect-migrate.config.json --amp-out .amp
+
+# Track migration metrics
+effect-migrate metrics --config effect-migrate.config.json --amp-out .amp
+```
+
+**Generated artifacts:**
+
+- `audit.json` — Detailed findings per file
+- `metrics.json` — Progress tracking (42% migrated, 29 findings)
+- `badges.md` — Migration status badges for documentation
+- `index.json` — MCP-compatible context index
+
+---
+
+## Documentation
+
+- **[AGENTS.md](./AGENTS.md)** — Comprehensive guide for Amp coding agents
+- **[Core Package](./packages/core)** — Migration engine architecture and services
+- **[CLI Package](./packages/cli)** — Command-line interface and formatters
+- **[Preset Package](./packages/preset-basic)** — Default migration rules
+
+---
 
 ## Development
 
@@ -366,43 +319,59 @@ pnpm typecheck
 pnpm lint
 ```
 
+See [AGENTS.md](./AGENTS.md) for detailed development guidelines, Effect-TS best practices, and anti-patterns to avoid.
+
+---
+
 ## Contributing
 
 We welcome contributions! This project is in early stages, so now is a great time to:
 
-- Implement planned features
-- Add migration rules to preset-basic
-- Improve documentation
-- Test on real Effect migration projects
-- Provide feedback on the rule API
+- 🚀 Implement planned features
+- 📋 Add migration rules to [@effect-migrate/preset-basic](./packages/preset-basic)
+- 📝 Improve documentation
+- 🧪 Test on real Effect migration projects
+- 💡 Provide feedback on the rule API
 
-See [AGENTS.md](./AGENTS.md) for comprehensive development guidelines.
+Please see [AGENTS.md](./AGENTS.md) for comprehensive development guidelines.
 
-## Prior Art
+---
+
+## Inspiration
 
 This tool builds on insights from:
 
-- **ESLint**: Pluggable rule system and severity levels
-- **ts-migrate**: TypeScript migration automation
-- Our own refactoring scripts used in production Effect migrations
+- **ESLint** — Pluggable rule system and severity levels
+- **ts-migrate** — TypeScript migration automation
+- **Production Experience** — Our own refactoring scripts from real Effect migrations
 
 Unlike generic linters, effect-migrate is:
-- **Effect-aware**: Understands Effect patterns and conventions
-- **Migration-focused**: Tracks progress, not just violations
-- **AI-friendly**: Outputs structured context for coding assistants
+
+- 🎯 **Effect-aware** — Understands Effect patterns and conventions
+- 📈 **Migration-focused** — Tracks progress, not just violations
+- 🤖 **Amp-native** — Built specifically for Amp coding agents (extensible to other AI agents in the future)
+
+---
 
 ## License
 
-MIT © 2025 Ari Dyckovsky
+MIT © 2025 [Ari Dyckovsky](https://github.com/aridyckovsky)
+
+---
 
 ## Links
 
 - [Effect Documentation](https://effect.website)
 - [Effect Discord](https://discord.gg/effect-ts)
-- [GitHub Repository](https://github.com/aridyckovsky/effect-migrate)
+- [Amp](https://ampcode.com)
+- [GitHub Issues](https://github.com/aridyckovsky/effect-migrate/issues)
 
 ---
 
-**Status**: Early stage development - not ready for production use  
-**Maintainer**: [@aridyckovsky](https://github.com/aridyckovsky)  
-**Built with**: [Effect-TS](https://effect.website) • [@effect/cli](https://github.com/Effect-TS/effect/tree/main/packages/cli) • [@effect/platform](https://github.com/Effect-TS/effect/tree/main/packages/platform)
+<div align="center">
+
+**Built with [Effect-TS](https://effect.website)**
+
+[@effect/cli](https://github.com/Effect-TS/effect/tree/main/packages/cli) • [@effect/platform](https://github.com/Effect-TS/effect/tree/main/packages/platform) • [@effect/schema](https://github.com/Effect-TS/effect/tree/main/packages/schema)
+
+</div>
