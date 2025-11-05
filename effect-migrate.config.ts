@@ -1,12 +1,41 @@
 import type { Config } from "@effect-migrate/core"
 
+/**
+ * effect-migrate configuration
+ *
+ * This config demonstrates:
+ * - Loading presets (commented out to avoid self-detection)
+ * - Custom pattern rules specific to this monorepo
+ * - Boundary rules for package architecture
+ *
+ * Preset behavior:
+ * - Preset rules combine with your custom patterns/boundaries
+ * - Preset defaults (like paths.exclude) are merged with your config
+ * - Your config values always override preset defaults
+ */
 export default {
   version: 1,
+
+  // Preset loading example (uncomment to enable):
+  // presets: ["@effect-migrate/preset-basic"],
+  // The preset provides:
+  // - Pattern rules: no-async-await, no-new-promise, no-try-catch, etc.
+  // - Boundary rules: no-node-in-services, no-platform-node-in-core, etc.
+  // - Default excludes: node_modules, dist, build artifacts
+
   paths: {
     root: "packages",
     include: ["**/*.ts"],
-    exclude: ["**/node_modules/**", "**/dist/**", "**/*.test.ts", "**/examples/**", "**/test/fixtures/**"]
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/*.test.ts",
+      "**/examples/**",
+      "**/test/fixtures/**"
+    ]
   },
+
+  // Custom pattern rules specific to this monorepo
   patterns: [
     {
       id: "no-async-await",
@@ -32,6 +61,8 @@ export default {
       severity: "warning"
     }
   ],
+
+  // Boundary rules for package architecture
   boundaries: [
     {
       id: "core-no-cli-deps",
@@ -48,5 +79,7 @@ export default {
       severity: "error"
     }
   ],
+
+  // Performance: number of concurrent file operations
   concurrency: 4
 } satisfies Config
