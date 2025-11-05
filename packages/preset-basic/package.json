@@ -1,6 +1,6 @@
 {
   "name": "@effect-migrate/preset-basic",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Basic preset for Effect migration patterns",
   "license": "MIT",
   "repository": {

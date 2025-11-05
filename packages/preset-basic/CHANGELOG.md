@@ -1,5 +1,16 @@
 # @effect-migrate/preset-basic
 
+## 0.2.1
+
+### Patch Changes
+
+- [#30](https://github.com/aridyckovsky/effect-migrate/pull/30) [`c34b8f0`](https://github.com/aridyckovsky/effect-migrate/commit/c34b8f0c0bcb91a234cf44b9e4458b4edb90eb37) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Add comprehensive tests for async arrow function detection in noAsyncAwait rule. The rule already supported arrow functions, but tests only covered `async function` declarations. Now includes tests for:
+  - Arrow functions without parameters: `async () => {}`
+  - Arrow functions with multiple parameters: `async (id, name) => {}`
+  - Arrow functions with single parameter: `async x => {}`
+- Updated dependencies [[`c1277e5`](https://github.com/aridyckovsky/effect-migrate/commit/c1277e5605df7c5450eca9be34c7590b83efb424)]:
+  - @effect-migrate/core@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
