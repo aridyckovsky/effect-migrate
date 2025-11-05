@@ -191,4 +191,27 @@ describe("context-writer", () => {
       // Should reference threads.json when threads exist
       expect(index.files.threads).toBe("threads.json")
     }).pipe(Effect.provide(NodeContext.layer)))
+
+  it.scoped("should omit threads field in index when no threads exist", () =>
+    Effect.gen(function*() {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      const tmpDir = yield* fs.makeTempDirectoryScoped()
+      const outputDir = path.join(tmpDir, "amp-test")
+
+      // Generate context WITHOUT creating threads
+      yield* writeAmpContext(outputDir, testResults, testConfig)
+
+      // Read and decode index.json
+      const indexPath = path.join(outputDir, "index.json")
+      const indexContent = yield* fs.readFileString(indexPath)
+      const index = yield* Effect.try({
+        try: () => JSON.parse(indexContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
+
+      // Should NOT have threads field (omitted, not null)
+      expect(index.files.threads).toBeUndefined()
+    }).pipe(Effect.provide(NodeContext.layer)))
 })
