@@ -1,10 +1,10 @@
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
-import * as Clock from "effect/Clock"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as TestClock from "effect/TestClock"
 import {
   addThread,
   readThreads,
@@ -29,33 +29,101 @@ interface MockFileSystemState {
 const makeMockFileSystem = () => {
   const state: MockFileSystemState = { files: new Map() }
 
-  return {
-    exists: (path: string) => Effect.succeed(state.files.has(path)),
-    readFileString: (path: string) =>
+  return FileSystem.FileSystem.of({
+    access: () => Effect.void,
+    chmod: () => Effect.void,
+    chown: () => Effect.void,
+    copy: () => Effect.void,
+    copyFile: () => Effect.void,
+    exists: path => Effect.succeed(state.files.has(path)),
+    link: () => Effect.void,
+    makeDirectory: () => Effect.void,
+    makeTempDirectory: () => Effect.succeed("/tmp/mock"),
+    makeTempDirectoryScoped: () => Effect.succeed("/tmp/mock"),
+    makeTempFile: () => Effect.succeed("/tmp/mock-file"),
+    makeTempFileScoped: () => Effect.succeed("/tmp/mock-file"),
+    open: () => Effect.die("Not implemented"),
+    readDirectory: () => Effect.succeed([]),
+    readFile: path =>
       Effect.gen(function*() {
         const content = state.files.get(path)
         if (!content) {
-          return yield* Effect.fail(new Error(`File not found: ${path}`))
+          return yield* Effect.fail(
+            new FileSystem.PlatformError({
+              reason: "NotFound",
+              module: "FileSystem",
+              method: "readFile",
+              message: `File not found: ${path}`
+            })
+          )
+        }
+        return new TextEncoder().encode(content)
+      }),
+    readFileString: path =>
+      Effect.gen(function*() {
+        const content = state.files.get(path)
+        if (!content) {
+          return yield* Effect.fail(
+            new FileSystem.PlatformError({
+              reason: "NotFound",
+              module: "FileSystem",
+              method: "readFileString",
+              message: `File not found: ${path}`
+            })
+          )
         }
         return content
       }),
-    writeFileString: (path: string, content: string) =>
+    readLink: () => Effect.succeed(""),
+    realPath: path => Effect.succeed(path),
+    remove: () => Effect.void,
+    rename: () => Effect.void,
+    sink: () => Effect.die("Not implemented"),
+    stat: () => Effect.die("Not implemented"),
+    stream: () => Effect.die("Not implemented"),
+    symlink: () => Effect.void,
+    truncate: () => Effect.void,
+    utimes: () => Effect.void,
+    watch: () => Effect.die("Not implemented"),
+    writeFile: (path, data) =>
+      Effect.sync(() => {
+        state.files.set(path, new TextDecoder().decode(data as Uint8Array))
+      }),
+    writeFileString: (path, content) =>
       Effect.sync(() => {
         state.files.set(path, content)
       }),
-    makeDirectory: (_path: string, _options?: { recursive?: boolean }) => Effect.void,
     state
-  }
+  })
 }
 
-const MockFileSystemLayer = Layer.succeed(FileSystem.FileSystem, makeMockFileSystem() as any)
+const MockPathLayer = Layer.succeed(
+  Path.Path,
+  Path.Path.of({
+    basename: path => path.split("/").pop() ?? "",
+    dirname: path => path.split("/").slice(0, -1).join("/") || "/",
+    extname: path => {
+      const base = path.split("/").pop() ?? ""
+      const idx = base.lastIndexOf(".")
+      return idx > 0 ? base.slice(idx) : ""
+    },
+    format: () => "",
+    fromFileUrl: url => url.toString(),
+    isAbsolute: path => path.startsWith("/"),
+    join: (...parts) => parts.join("/"),
+    normalize: path => path,
+    parse: () => ({ root: "", dir: "", base: "", ext: "", name: "" }),
+    relative: (from, to) => to.replace(from, "").replace(/^\//, ""),
+    resolve: (...paths) => "/" + paths.filter(Boolean).join("/").replace(/\/+/g, "/"),
+    sep: "/",
+    toFileUrl: path => new URL(`file://${path}`),
+    toNamespacedPath: path => path
+  })
+)
 
-const MockPathLayer = Layer.succeed(Path.Path, {
-  join: (...parts: string[]) => parts.join("/"),
-  sep: "/"
-} as any)
-
-const TestContext = Layer.merge(MockFileSystemLayer, MockPathLayer)
+// Helper to create test context with fresh mock filesystem
+const makeTestContext = () =>
+  Layer.merge(Layer.succeed(FileSystem.FileSystem, makeMockFileSystem()), MockPathLayer)
 
 describe("thread-manager", () => {
   describe("validateThreadUrl", () => {
@@ -130,7 +198,7 @@ describe("thread-manager", () => {
           version: 1,
           threads: []
         })
-      }).pipe(Effect.provide(TestContext)))
+      }).pipe(Effect.provide(makeTestContext())))
 
     it.effect("handles malformed JSON gracefully", () =>
       Effect.gen(function*() {
@@ -140,7 +208,7 @@ describe("thread-manager", () => {
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
             Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
+              Layer.succeed(FileSystem.FileSystem, mockFs),
               MockPathLayer
             )
           )
@@ -171,7 +239,7 @@ describe("thread-manager", () => {
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
             Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
+              Layer.succeed(FileSystem.FileSystem, mockFs),
               MockPathLayer
             )
           )
@@ -207,7 +275,7 @@ describe("thread-manager", () => {
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
             Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
+              Layer.succeed(FileSystem.FileSystem, mockFs),
               MockPathLayer
             )
           )
@@ -222,25 +290,21 @@ describe("thread-manager", () => {
   })
 
   describe("addThread", () => {
-    it.effect("adds new thread with all fields", () =>
+    it.scoped("adds new thread with all fields", () =>
       Effect.gen(function*() {
         const mockFs = makeMockFileSystem()
-        const mockClock = Clock.make(now => now + 1000)
+
+        const baseContext = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
 
         const result = yield* addThread("/test-dir", {
           url: "https://ampcode.com/threads/T-12345678-abcd-1234-abcd-123456789abc",
           tags: ["migration", "api"],
           scope: ["src/api/*"],
           description: "API migration thread"
-        }).pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
-              MockPathLayer,
-              Layer.succeed(Clock.Clock, mockClock)
-            )
-          )
-        )
+        }).pipe(Effect.provide(baseContext))
 
         expect(result.added).toBe(true)
         expect(result.merged).toBe(false)
@@ -283,7 +347,7 @@ describe("thread-manager", () => {
         }).pipe(
           Effect.provide(
             Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
+              Layer.succeed(FileSystem.FileSystem, mockFs),
               MockPathLayer
             )
           )
@@ -321,7 +385,7 @@ describe("thread-manager", () => {
         }).pipe(
           Effect.provide(
             Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
+              Layer.succeed(FileSystem.FileSystem, mockFs),
               MockPathLayer
             )
           )
@@ -332,7 +396,7 @@ describe("thread-manager", () => {
         expect(result.current.scope).toEqual(["src/api/*", "src/core/*", "src/utils/*"]) // Union + sorted
       }))
 
-    it.effect("preserves original createdAt on merge", () =>
+    it.scoped("preserves original createdAt on merge", () =>
       Effect.gen(function*() {
         const mockFs = makeMockFileSystem()
         const originalTimestamp = DateTime.unsafeMake(1000)
@@ -351,22 +415,16 @@ describe("thread-manager", () => {
 
         mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
 
-        // Mock clock returns different time
-        const mockClock = Clock.make(() => 99999)
+        const baseContext = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
 
         // Add same thread
         const result = yield* addThread("/test-dir", {
           url: "https://ampcode.com/threads/T-12345678-abcd-1234-abcd-123456789abc",
           tags: ["new-tag"]
-        }).pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              Layer.succeed(FileSystem.FileSystem, mockFs as any),
-              MockPathLayer,
-              Layer.succeed(Clock.Clock, mockClock)
-            )
-          )
-        )
+        }).pipe(Effect.provide(baseContext))
 
         expect(result.merged).toBe(true)
         // Should preserve original timestamp, not use clock's new time
@@ -378,7 +436,7 @@ describe("thread-manager", () => {
         const mockFs = makeMockFileSystem()
 
         const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs as any),
+          Layer.succeed(FileSystem.FileSystem, mockFs),
           MockPathLayer
         )
 
@@ -436,7 +494,7 @@ describe("thread-manager", () => {
         }
 
         const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs as any),
+          Layer.succeed(FileSystem.FileSystem, mockFs),
           MockPathLayer
         )
 
@@ -452,6 +510,227 @@ describe("thread-manager", () => {
         expect(result.threads[0].tags).toEqual(["migration", "api"])
         expect(result.threads[0].scope).toEqual(["src/api/*"])
         expect(result.threads[0].description).toBe("Test thread")
+      }))
+  })
+
+  describe("schema migration tests", () => {
+    it.effect("handles version 0 by reading it as-is (no migration yet)", () =>
+      Effect.gen(function*() {
+        const mockFs = makeMockFileSystem()
+        const timestamp = new Date("2025-11-04T10:00:00Z")
+
+        // Create old format with version 0 (schema accepts numeric version)
+        const oldFormat = {
+          version: 0,
+          threads: [
+            {
+              id: TEST_THREAD_1_ID,
+              url: TEST_THREAD_1_URL,
+              createdAt: timestamp.toISOString(),
+              tags: ["migration", "api"],
+              scope: ["src/api/*"],
+              description: "Old format thread"
+            }
+          ]
+        }
+
+        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(oldFormat))
+
+        const context = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
+
+        const result = yield* readThreads("/test-dir").pipe(Effect.provide(context))
+
+        // Reads version 0 as-is without migration (read doesn't modify version)
+        // Version is only updated when writing new data via addThread/writeThreads
+        expect(result.version).toBe(0)
+        expect(result.threads.length).toBe(1)
+        expect(result.threads[0].id).toBe(TEST_THREAD_1_ID)
+      }))
+
+    it.effect("handles missing version field gracefully (returns empty)", () =>
+      Effect.gen(function*() {
+        const mockFs = makeMockFileSystem()
+        const timestamp = new Date("2025-11-04T10:00:00Z")
+
+        // Create format without version field (schema validation fails)
+        const noVersionFormat = {
+          threads: [
+            {
+              id: TEST_THREAD_2_ID,
+              url: TEST_THREAD_2_URL,
+              createdAt: timestamp.toISOString(),
+              tags: ["test"]
+            }
+          ]
+        }
+
+        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(noVersionFormat))
+
+        const context = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
+
+        const result = yield* readThreads("/test-dir").pipe(Effect.provide(context))
+
+        // Returns empty on schema validation failure
+        expect(result.version).toBe(1)
+        expect(result.threads).toEqual([])
+      }))
+
+    it.effect("writes audit version when adding thread", () =>
+      Effect.gen(function*() {
+        const mockFs = makeMockFileSystem()
+        const oldTimestamp = new Date("2025-11-03T10:00:00Z")
+
+        // Start with version 0 file (old audit version)
+        const oldFormat = {
+          version: 0,
+          threads: [
+            {
+              id: TEST_THREAD_1_ID,
+              url: TEST_THREAD_1_URL,
+              createdAt: oldTimestamp.toISOString(),
+              tags: ["old-tag"]
+            }
+          ]
+        }
+
+        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(oldFormat))
+
+        const context = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
+
+        // Add a new thread with audit version 5
+        yield* addThread(
+          "/test-dir",
+          {
+            url: "https://ampcode.com/threads/T-22222222-2222-2222-2222-222222222222",
+            tags: ["new-tag"]
+          },
+          5 // Audit version parameter
+        ).pipe(Effect.provide(context))
+
+        // Read the updated file
+        const updated = yield* readThreads("/test-dir").pipe(Effect.provide(context))
+
+        // Version should match the audit version we passed
+        expect(updated.version).toBe(5)
+        expect(updated.threads.length).toBe(2)
+
+        // Old thread preserved
+        const oldThread = updated.threads.find(t => t.id === TEST_THREAD_1_ID)
+        expect(oldThread).toBeDefined()
+        expect(oldThread?.tags).toContain("old-tag")
+      }))
+
+    it.effect("handles future versions gracefully (treats as valid if schema matches)", () =>
+      Effect.gen(function*() {
+        const mockFs = makeMockFileSystem()
+        const timestamp = new Date("2025-11-04T10:00:00Z")
+
+        // Create format with future version (999) but valid schema
+        const futureFormat = {
+          version: 999,
+          threads: [
+            {
+              id: TEST_THREAD_3_ID,
+              url: TEST_THREAD_3_URL,
+              createdAt: timestamp.toISOString(),
+              tags: ["future"]
+            }
+          ]
+        }
+
+        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(futureFormat))
+
+        const context = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
+
+        const result = yield* readThreads("/test-dir").pipe(Effect.provide(context))
+
+        // Currently accepts any numeric version as long as schema is valid
+        // In the future, could add version validation/migration logic
+        expect(result.version).toBe(999)
+        expect(result.threads.length).toBe(1)
+        expect(result.threads[0].id).toBe(TEST_THREAD_3_ID)
+      }))
+
+    it.effect("preserves data when unknown fields present (filtered by schema)", () =>
+      Effect.gen(function*() {
+        const mockFs = makeMockFileSystem()
+        const timestamp = new Date("2025-11-04T10:00:00Z")
+
+        // Create format with extra unknown fields (schema strips them)
+        const formatWithExtras = {
+          version: 1,
+          threads: [
+            {
+              id: TEST_THREAD_1_ID,
+              url: TEST_THREAD_1_URL,
+              createdAt: timestamp.toISOString(),
+              tags: ["migration"],
+              unknownField1: "should be stripped by schema",
+              nestedUnknown: { deep: "value" }
+            }
+          ],
+          unknownTopLevel: "also stripped"
+        }
+
+        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(formatWithExtras))
+
+        const context = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
+
+        const result = yield* readThreads("/test-dir").pipe(Effect.provide(context))
+
+        // Successfully reads and strips unknown fields
+        expect(result.version).toBe(1)
+        expect(result.threads.length).toBe(1)
+        expect(result.threads[0].id).toBe(TEST_THREAD_1_ID)
+        expect(result.threads[0].tags).toEqual(["migration"])
+        // Unknown fields filtered by Effect Schema
+      }))
+
+    it.effect("writes threads with version 1 consistently", () =>
+      Effect.gen(function*() {
+        const mockFs = makeMockFileSystem()
+        const timestamp = DateTime.unsafeMake(1000)
+
+        const context = Layer.merge(
+          Layer.succeed(FileSystem.FileSystem, mockFs),
+          MockPathLayer
+        )
+
+        const threadsToWrite: ThreadsFile = {
+          version: 1,
+          threads: [
+            {
+              id: TEST_THREAD_1_ID,
+              url: TEST_THREAD_1_URL,
+              createdAt: timestamp,
+              tags: ["test"]
+            }
+          ]
+        }
+
+        yield* writeThreads("/test-dir", threadsToWrite).pipe(Effect.provide(context))
+
+        const written = mockFs.state.files.get("/test-dir/threads.json")
+        expect(written).toBeDefined()
+
+        const parsed = JSON.parse(written!)
+        expect(parsed.version).toBe(1)
+        expect(parsed.threads.length).toBe(1)
       }))
   })
 })
