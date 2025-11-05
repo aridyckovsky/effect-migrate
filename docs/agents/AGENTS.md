@@ -131,6 +131,18 @@ docs/agents/
 - Use descriptive filenames matching PR branch or feature name (e.g., `fix-cli-index-threads-reference.md`)
 - Set status to `complete` when ready to use for PR
 
+**Using drafts with `gh` CLI:**
+
+When creating PRs via GitHub CLI, **skip the YAML frontmatter** (lines 1-9). Only use the markdown body content:
+
+```bash
+# Extract body without YAML frontmatter (skip first 10 lines)
+tail -n +10 docs/agents/prs/drafts/your-pr-draft.md | \
+  gh pr create --title "your PR title" --body-file -
+```
+
+The YAML frontmatter is for internal documentation only, not for GitHub PR bodies.
+
 **Reviews:**
 
 - **MUST include full YAML frontmatter** (created, lastUpdated, author, status, thread, audience, tags)

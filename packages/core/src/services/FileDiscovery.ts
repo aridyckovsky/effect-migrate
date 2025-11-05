@@ -201,10 +201,20 @@ export const FileDiscoveryLive = Layer.effect(
               if (stat.type === "Directory") {
                 // Check if directory itself is excluded before recursing
                 const relDir = normalize(path.relative(cwdNorm, full))
-                const dirPatterns = [`${relDir}/**`, `**/${entry}/**`, `${entry}/**`]
-                const isExcluded = dirPatterns.some(pat =>
-                  excludePats.some(excl => matchGlob(excl, pat))
-                )
+
+                // Helper to strip trailing /** from exclude patterns
+                const stripTrailingGlobDir = (p: string) => p.replace(/\/\*\*$/, "")
+
+                // Match directory path against exclude patterns (both absolute and relative)
+                const isExcluded = excludePats.some(excl => {
+                  const exclBase = stripTrailingGlobDir(excl)
+                  return (
+                    matchGlob(excl, relDir) ||
+                    matchGlob(excl, full) ||
+                    matchGlob(exclBase, relDir) ||
+                    matchGlob(exclBase, full)
+                  )
+                })
 
                 if (!isExcluded) {
                   const sub = yield* walk(full)
