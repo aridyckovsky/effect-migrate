@@ -37,6 +37,85 @@ describe("Pattern Rules", () => {
       expect(results[0].severity).toBe("warning")
     }))
 
+  it.effect("noAsyncAwait detects async arrow functions", () =>
+    Effect.gen(function*() {
+      const mockContext: RuleContext = {
+        cwd: "/test",
+        path: ".",
+        listFiles: () => Effect.succeed(["example.ts"]),
+        readFile: () => Effect.succeed("const fetchData = async () => { return 42 }"),
+        getImportIndex: () =>
+          Effect.succeed({
+            getImports: () => [],
+            getImporters: () => []
+          }),
+        config: {},
+        logger: {
+          debug: () => Effect.void,
+          info: () => Effect.void
+        }
+      }
+
+      const results = yield* noAsyncAwait.run(mockContext)
+
+      expect(results.length).toBeGreaterThan(0)
+      expect(results[0].id).toBe("no-async-await")
+      expect(results[0].severity).toBe("warning")
+      expect(results[0].message).toContain("Effect.gen")
+    }))
+
+  it.effect("noAsyncAwait detects async arrow functions with parameters", () =>
+    Effect.gen(function*() {
+      const mockContext: RuleContext = {
+        cwd: "/test",
+        path: ".",
+        listFiles: () => Effect.succeed(["example.ts"]),
+        readFile: () =>
+          Effect.succeed("const processUser = async (id, name) => { return { id, name } }"),
+        getImportIndex: () =>
+          Effect.succeed({
+            getImports: () => [],
+            getImporters: () => []
+          }),
+        config: {},
+        logger: {
+          debug: () => Effect.void,
+          info: () => Effect.void
+        }
+      }
+
+      const results = yield* noAsyncAwait.run(mockContext)
+
+      expect(results.length).toBeGreaterThan(0)
+      expect(results[0].id).toBe("no-async-await")
+      expect(results[0].severity).toBe("warning")
+    }))
+
+  it.effect("noAsyncAwait detects async arrow functions with single parameter", () =>
+    Effect.gen(function*() {
+      const mockContext: RuleContext = {
+        cwd: "/test",
+        path: ".",
+        listFiles: () => Effect.succeed(["example.ts"]),
+        readFile: () => Effect.succeed("const getData = async x => x * 2"),
+        getImportIndex: () =>
+          Effect.succeed({
+            getImports: () => [],
+            getImporters: () => []
+          }),
+        config: {},
+        logger: {
+          debug: () => Effect.void,
+          info: () => Effect.void
+        }
+      }
+
+      const results = yield* noAsyncAwait.run(mockContext)
+
+      expect(results.length).toBeGreaterThan(0)
+      expect(results[0].id).toBe("no-async-await")
+    }))
+
   it.effect("noAsyncAwait ignores Effect.gen code", () =>
     Effect.gen(function*() {
       const mockContext: RuleContext = {
