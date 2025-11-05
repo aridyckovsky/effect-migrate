@@ -11,7 +11,7 @@ import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { type AmpContextIndex, writeAmpContext } from "../../src/amp/context-writer.js"
+import { AmpContextIndex, writeAmpContext } from "../../src/amp/context-writer.js"
 
 describe("context-writer", () => {
   const testConfig: Config = {
@@ -51,7 +51,10 @@ describe("context-writer", () => {
       // Read index.json
       const indexPath = path.join(outputDir, "index.json")
       const indexContent = yield* fs.readFileString(indexPath)
-      const index = JSON.parse(indexContent) as AmpContextIndex
+      const index = yield* Effect.try({
+        try: () => JSON.parse(indexContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
 
       // Verify schemaVersion is present and is a semver string
       expect(index.schemaVersion).toBeDefined()
@@ -90,7 +93,10 @@ describe("context-writer", () => {
       // Verify index references both files
       const indexPath = path.join(outputDir, "index.json")
       const indexContent = yield* fs.readFileString(indexPath)
-      const index = JSON.parse(indexContent) as AmpContextIndex
+      const index = yield* Effect.try({
+        try: () => JSON.parse(indexContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
 
       expect(index.files.audit).toBe("audit.json")
       expect(index.files.badges).toBe("badges.md")
@@ -114,5 +120,45 @@ describe("context-writer", () => {
       expect(indexExists).toBe(true)
       expect(auditExists).toBe(true)
       expect(badgesExists).toBe(true)
+    }).pipe(Effect.provide(NodeContext.layer)))
+
+  it.scoped("should fallback to default schemaVersion when missing in package.json", () =>
+    Effect.gen(function*() {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      // Create temp output directory
+      const tmpDir = yield* fs.makeTempDirectoryScoped()
+      const outputDir = path.join(tmpDir, "amp-test")
+
+      // Mock FileSystem to intercept package.json reads
+      const mockFs: typeof fs = {
+        ...fs,
+        readFileString: (p: string) => {
+          // Mock package.json without effectMigrate field
+          if (
+            p.includes("packages/cli/package.json") || p.includes("packages\\cli\\package.json")
+          ) {
+            return Effect.succeed(JSON.stringify({ version: "9.9.9" }))
+          }
+          // Pass through all other reads
+          return fs.readFileString(p)
+        }
+      }
+
+      // Run writeAmpContext with mock
+      yield* writeAmpContext(outputDir, testResults, testConfig)
+        .pipe(Effect.provideService(FileSystem.FileSystem, mockFs))
+
+      // Verify fallback to "1.0.0"
+      const indexPath = path.join(outputDir, "index.json")
+      const indexContent = yield* fs.readFileString(indexPath)
+      const index = yield* Effect.try({
+        try: () => JSON.parse(indexContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
+
+      expect(index.schemaVersion).toBe("1.0.0")
+      expect(index.toolVersion).toBe("9.9.9")
     }).pipe(Effect.provide(NodeContext.layer)))
 })

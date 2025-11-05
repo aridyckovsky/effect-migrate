@@ -271,6 +271,18 @@ export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadRe
 }
 
 /**
+ * Package JSON schema for validation.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+const PackageJson = Schema.Struct({
+  version: Schema.String,
+  effectMigrate: Schema.optional(Schema.Struct({ schemaVersion: Schema.String }))
+})
+type PackageJson = Schema.Schema.Type<typeof PackageJson>
+
+/**
  * Package metadata interface.
  *
  * @category Types
@@ -310,11 +322,14 @@ const getPackageMeta = Effect.gen(function*() {
   }
 
   const content = yield* fs.readFileString(packageJsonPath)
-  const packageJson = JSON.parse(content)
+  const pkg = yield* Effect.try({
+    try: () => JSON.parse(content) as unknown,
+    catch: e => new Error(`Invalid JSON in ${packageJsonPath}: ${String(e)}`)
+  }).pipe(Effect.flatMap(Schema.decodeUnknown(PackageJson)))
 
   return {
-    toolVersion: packageJson.version as string,
-    schemaVersion: (packageJson.effectMigrate?.schemaVersion as string | undefined) ?? "1.0.0"
+    toolVersion: pkg.version,
+    schemaVersion: pkg.effectMigrate?.schemaVersion ?? "1.0.0"
   }
 })
 
@@ -338,7 +353,12 @@ const getNextAuditVersion = (outputDir: string) =>
 
     // Try to read existing audit to get current version
     const existingAudit = yield* fs.readFileString(auditPath).pipe(
-      Effect.map(content => JSON.parse(content)),
+      Effect.flatMap(content =>
+        Effect.try({
+          try: () => JSON.parse(content) as unknown,
+          catch: e => new Error(`Invalid JSON in ${auditPath}: ${String(e)}`)
+        })
+      ),
       Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)),
       Effect.catchAll(() => Effect.succeed(null))
     )
