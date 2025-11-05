@@ -487,7 +487,7 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)), 10000)
+      }).pipe(Effect.provide(NodeContext.layer)))
 
     it.effect("handles large tag and scope arrays", () =>
       Effect.gen(function*() {
