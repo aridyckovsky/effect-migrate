@@ -155,7 +155,7 @@
 
 - name: "pr:ready"
   color: "0e8a16"
-  description: "Ready for review"
+  description: "Ready to merge"
 
 - name: "pr:changes-requested"
   color: "fbca04"
