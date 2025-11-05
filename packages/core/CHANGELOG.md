@@ -1,5 +1,11 @@
 # @effect-migrate/core
 
+## 0.2.1
+
+### Patch Changes
+
+- [#29](https://github.com/aridyckovsky/effect-migrate/pull/29) [`c1277e5`](https://github.com/aridyckovsky/effect-migrate/commit/c1277e5605df7c5450eca9be34c7590b83efb424) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Correctly prune nested directories using exclude globs in FileDiscovery. Exclude patterns are now matched against directory paths (absolute and relative) and support trailing "/\*\*". Adds tests for absolute and relative nested directory exclusions.
+
 ## 0.2.0
 
 ### Minor Changes
