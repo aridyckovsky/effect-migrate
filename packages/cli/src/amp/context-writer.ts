@@ -271,30 +271,51 @@ export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadRe
 }
 
 /**
- * Get the current tool version from package.json.
+ * Package metadata interface.
  *
- * @returns Effect containing the version string
+ * @category Types
+ * @since 0.2.0
+ */
+export interface PackageMeta {
+  readonly toolVersion: string
+  readonly schemaVersion: string
+}
+
+/**
+ * Get package metadata from package.json.
+ *
+ * Reads both version and schemaVersion from package.json at runtime.
+ * Falls back to "1.0.0" for schemaVersion if effectMigrate.schemaVersion is not defined.
+ *
+ * @returns Effect containing toolVersion and schemaVersion
  * @category Effect
  * @since 0.2.0
  */
-const getToolVersion = Effect.gen(function*() {
+const getPackageMeta = Effect.gen(function*() {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
 
   // Resolve path to package.json relative to this file
-  // In production: build/esm/amp/context-writer.js -> ../../../package.json
-  // In dev: src/amp/context-writer.ts -> ../../package.json
-  const packageJsonPath = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
-    "..",
-    "..",
-    "..",
-    "package.json"
-  )
+  // In production (build): build/esm/amp/context-writer.js -> ../../../package.json
+  // In test (tsx): src/amp/context-writer.ts (via tsx) -> ../../package.json
+  const dirname = path.dirname(new URL(import.meta.url).pathname)
+
+  // Try production path first (3 levels up)
+  let packageJsonPath = path.join(dirname, "..", "..", "..", "package.json")
+  const prodExists = yield* fs.exists(packageJsonPath)
+
+  // If not found, try dev/test path (2 levels up)
+  if (!prodExists) {
+    packageJsonPath = path.join(dirname, "..", "..", "package.json")
+  }
 
   const content = yield* fs.readFileString(packageJsonPath)
   const packageJson = JSON.parse(content)
-  return packageJson.version as string
+
+  return {
+    toolVersion: packageJson.version as string,
+    schemaVersion: (packageJson.effectMigrate?.schemaVersion as string | undefined) ?? "1.0.0"
+  }
 })
 
 /**
@@ -365,8 +386,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const timestamp = DateTime.unsafeMake(now)
     const cwd = process.cwd()
 
-    // Get dynamic tool version from package.json
-    const toolVersion = yield* getToolVersion
+    // Get dynamic metadata from package.json
+    const { toolVersion, schemaVersion } = yield* getPackageMeta
 
     // Get next audit version (increments on each run)
     const auditVersion = yield* getNextAuditVersion(outputDir)
@@ -438,7 +459,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     // Create index (validated by schema)
     const index: AmpContextIndex = {
       version: 1,
-      schemaVersion: "1.0.0",
+      schemaVersion,
       toolVersion,
       projectRoot: ".",
       timestamp,
