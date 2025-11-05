@@ -28,13 +28,7 @@
  * @since 0.1.0
  */
 
-import {
-  loadConfig,
-  makeBoundaryRule,
-  makePatternRule,
-  RuleRunner,
-  RuleRunnerLayer
-} from "@effect-migrate/core"
+import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
@@ -42,6 +36,7 @@ import * as Effect from "effect/Effect"
 import { writeAmpContext } from "../amp/context-writer.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
+import { loadRulesAndConfig } from "../loaders/rules.js"
 
 /**
  * CLI command to run migration audit.
@@ -85,50 +80,8 @@ export const auditCommand = Command.make(
   },
   ({ config: configPath, json, strict, ampOut }) =>
     Effect.gen(function*() {
-      // Load configuration
-      const config = yield* loadConfig(configPath).pipe(
-        Effect.catchAll(error =>
-          Effect.gen(function*() {
-            yield* Console.error(`Failed to load config: ${error}`)
-            return yield* Effect.fail(error)
-          })
-        )
-      )
-
-      // Collect rules from config using rule factories
-      const rules: any[] = []
-
-      // Pattern rules - convert config patterns to actual rules
-      if (config.patterns) {
-        for (const pattern of config.patterns) {
-          rules.push(makePatternRule({
-            id: pattern.id,
-            files: Array.isArray(pattern.files) ? pattern.files : [pattern.files],
-            pattern: pattern.pattern,
-            message: pattern.message,
-            severity: pattern.severity,
-            ...(pattern.negativePattern !== undefined &&
-              { negativePattern: pattern.negativePattern }),
-            ...(pattern.docsUrl !== undefined && { docsUrl: pattern.docsUrl }),
-            ...(pattern.tags !== undefined && { tags: [...pattern.tags] })
-          }))
-        }
-      }
-
-      // Boundary rules - convert config boundaries to actual rules
-      if (config.boundaries) {
-        for (const boundary of config.boundaries) {
-          rules.push(makeBoundaryRule({
-            id: boundary.id,
-            from: boundary.from,
-            disallow: [...boundary.disallow],
-            message: boundary.message,
-            severity: boundary.severity,
-            ...(boundary.docsUrl !== undefined && { docsUrl: boundary.docsUrl }),
-            ...(boundary.tags !== undefined && { tags: [...boundary.tags] })
-          }))
-        }
-      }
+      // Load configuration, presets, and construct all rules
+      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath)
 
       if (rules.length === 0) {
         yield* Console.log("⚠️  No rules configured")
@@ -137,20 +90,20 @@ export const auditCommand = Command.make(
 
       // Run rules via RuleRunner service
       const runner = yield* RuleRunner
-      const results = yield* runner.runRules(rules, config)
+      const results = yield* runner.runRules(rules, effectiveConfig)
 
       // Format output
       if (json) {
-        const output = formatJsonOutput(results, config)
+        const output = formatJsonOutput(results, effectiveConfig)
         yield* Console.log(JSON.stringify(output, null, 2))
       } else {
-        const output = formatConsoleOutput(results, config)
+        const output = formatConsoleOutput(results, effectiveConfig)
         yield* Console.log(output)
       }
 
       // Write Amp context if requested
       if (ampOut._tag === "Some") {
-        yield* writeAmpContext(ampOut.value, results, config)
+        yield* writeAmpContext(ampOut.value, results, effectiveConfig)
         yield* Console.log(`\n✓ Wrote Amp context to ${ampOut.value}`)
       }
 
@@ -158,7 +111,7 @@ export const auditCommand = Command.make(
       const errors = results.filter(r => r.severity === "error")
       const warnings = results.filter(r => r.severity === "warning")
 
-      const failOn = config.report?.failOn ?? ["error", "warning"]
+      const failOn = effectiveConfig.report?.failOn ?? ["error", "warning"]
       const shouldFail = (failOn.includes("error") && errors.length > 0) ||
         (failOn.includes("warning") && warnings.length > 0) ||
         (strict && (errors.length > 0 || warnings.length > 0))
