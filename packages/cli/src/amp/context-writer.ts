@@ -201,7 +201,9 @@ export const AmpContextIndex = Schema.Struct({
     /** Path to metrics.json (future) */
     metrics: Schema.optional(Schema.String),
     /** Path to badges.md */
-    badges: Schema.optional(Schema.String)
+    badges: Schema.optional(Schema.String),
+    /** Path to threads.json (present when threads exist) */
+    threads: Schema.optional(Schema.String)
   })
 })
 
@@ -485,7 +487,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       timestamp,
       files: {
         audit: "audit.json",
-        badges: "badges.md"
+        badges: "badges.md",
+        ...(auditThreads.length > 0 && { threads: "threads.json" })
       }
     }
 
