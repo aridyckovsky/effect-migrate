@@ -1,7 +1,50 @@
+/**
+ * Console Formatter - Human-readable audit output with colors and icons
+ *
+ * This module formats audit results for terminal display using chalk for
+ * colorization and Unicode icons for visual clarity. Output is grouped by
+ * file with severity-based styling and includes project-level issues.
+ *
+ * @module @effect-migrate/cli/formatters/console
+ * @since 0.1.0
+ */
+
 import type { RuleResult } from "@effect-migrate/core"
 import type { Config } from "@effect-migrate/core"
 import chalk from "chalk"
 
+/**
+ * Format audit results for human-readable console output.
+ *
+ * Produces colorized, icon-rich output grouped by file with:
+ * - Project-level issues (no associated file)
+ * - File-level issues with location and suggestions
+ * - Summary statistics (errors, warnings, total)
+ *
+ * @param results - Array of rule violation results from audit
+ * @param config - Migration configuration (currently unused but reserved for future formatting options)
+ * @returns Formatted string ready for console display
+ *
+ * @category Formatter
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * const output = formatConsoleOutput(results, config)
+ * console.log(output)
+ * // Displays:
+ * // ════════════════════════════════════════════════════════════
+ * //   AUDIT RESULTS
+ * // ════════════════════════════════════════════════════════════
+ * //
+ * // 📄 src/api/users.ts
+ * //   ❌ [async-await-to-effect] Convert async/await to Effect.gen
+ * //      Line 42:5
+ * //      💡 Use Effect.gen instead of async/await
+ * //      📖 https://effect.website/docs/gen
+ * // ...
+ * ```
+ */
 export const formatConsoleOutput = (results: RuleResult[], config: Config): string => {
   if (results.length === 0) {
     return `

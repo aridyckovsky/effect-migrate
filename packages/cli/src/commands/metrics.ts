@@ -1,3 +1,33 @@
+/**
+ * Metrics Command - Display migration progress dashboard
+ *
+ * This module provides the `metrics` CLI command that runs audit rules
+ * and displays migration progress as a rich terminal dashboard with:
+ * - Summary statistics table
+ * - Progress bar visualization
+ * - Rule breakdown by violation count
+ * - Next steps recommendations
+ *
+ * ## Usage
+ *
+ * ```bash
+ * # Display metrics dashboard (default)
+ * effect-migrate metrics
+ *
+ * # Output metrics as JSON
+ * effect-migrate metrics --json
+ *
+ * # Write metrics to Amp context
+ * effect-migrate metrics --amp-out .amp/effect-migrate
+ *
+ * # Use custom config file
+ * effect-migrate metrics --config my-config.ts
+ * ```
+ *
+ * @module @effect-migrate/cli/commands/metrics
+ * @since 0.1.0
+ */
+
 import {
   loadConfig,
   makeBoundaryRule,
@@ -12,6 +42,31 @@ import * as Effect from "effect/Effect"
 import { writeMetricsContext } from "../amp/metrics-writer.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
 
+/**
+ * CLI command to display migration metrics dashboard.
+ *
+ * Runs audit rules, calculates metrics, and displays progress dashboard.
+ * Dashboard includes summary table, progress bar, rule breakdown, and recommendations.
+ *
+ * Always returns exit code 0 (metrics are informational, not pass/fail).
+ *
+ * @category CLI Command
+ * @since 0.1.0
+ *
+ * @example
+ * ```bash
+ * # Display dashboard
+ * effect-migrate metrics
+ * # => ╔═══════════════════════════════════════════════════════════╗
+ * # => ║          📊 MIGRATION METRICS DASHBOARD                   ║
+ * # => ╚═══════════════════════════════════════════════════════════╝
+ * # => ...
+ *
+ * # Output as JSON for programmatic use
+ * effect-migrate metrics --json
+ * # => {"metrics": {"totalIssues": 15, "errors": 10, ...}}
+ * ```
+ */
 export const metricsCommand = Command.make(
   "metrics",
   {

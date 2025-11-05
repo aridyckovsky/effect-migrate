@@ -1,3 +1,33 @@
+/**
+ * Audit Command - Run migration rules and report violations
+ *
+ * This module provides the main `audit` CLI command that loads configuration,
+ * executes pattern and boundary rules, and reports violations in multiple formats
+ * (console, JSON, Amp context).
+ *
+ * ## Usage
+ *
+ * ```bash
+ * # Run audit with default config
+ * effect-migrate audit
+ *
+ * # Use custom config file
+ * effect-migrate audit --config my-config.ts
+ *
+ * # Output as JSON
+ * effect-migrate audit --json
+ *
+ * # Generate Amp context
+ * effect-migrate audit --amp-out .amp/effect-migrate
+ *
+ * # Fail on warnings (strict mode)
+ * effect-migrate audit --strict
+ * ```
+ *
+ * @module @effect-migrate/cli/commands/audit
+ * @since 0.1.0
+ */
+
 import {
   loadConfig,
   makeBoundaryRule,
@@ -13,6 +43,35 @@ import { writeAmpContext } from "../amp/context-writer.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
 
+/**
+ * CLI command to run migration audit.
+ *
+ * Loads configuration, constructs rules from patterns and boundaries,
+ * runs rules via RuleRunner service, and outputs results in requested format.
+ *
+ * Exit codes:
+ * - 0: Audit passed (no violations or violations below failOn threshold)
+ * - 1: Audit failed (violations exceed failOn threshold or error occurred)
+ *
+ * Formats:
+ * - Console (default): Human-readable colored output with icons
+ * - JSON (--json): Machine-readable structured output
+ * - Amp context (--amp-out): MCP-compatible context files
+ *
+ * @category CLI Command
+ * @since 0.1.0
+ *
+ * @example
+ * ```bash
+ * # Run audit with default config
+ * effect-migrate audit
+ * # => Colored console output with file-grouped violations
+ *
+ * # Generate Amp context for persistent migration state
+ * effect-migrate audit --amp-out .amp/effect-migrate
+ * # => Creates .amp/effect-migrate/audit.json, index.json, badges.md
+ * ```
+ */
 export const auditCommand = Command.make(
   "audit",
   {

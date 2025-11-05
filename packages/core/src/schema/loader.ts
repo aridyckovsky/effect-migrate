@@ -1,3 +1,14 @@
+/**
+ * Configuration Loader - Load and validate effect-migrate config files
+ *
+ * This module provides utilities for loading configuration from .json, .js,
+ * and .ts files with automatic validation via ConfigSchema. Supports dynamic
+ * import of TypeScript configs using tsx loader.
+ *
+ * @module @effect-migrate/core/schema/loader
+ * @since 0.1.0
+ */
+
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Console from "effect/Console"
@@ -6,15 +17,67 @@ import * as Schema from "effect/Schema"
 import { pathToFileURL } from "node:url"
 import { ConfigSchema } from "./Config.js"
 
+/**
+ * Error thrown when configuration loading fails.
+ *
+ * Includes specific message about the failure cause (file not found,
+ * parse error, validation error, etc.).
+ *
+ * @category Error
+ * @since 0.1.0
+ */
 export class ConfigLoadError extends Schema.TaggedError<ConfigLoadError>()("ConfigLoadError", {
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
 }) {}
 
+/**
+ * Type helper for defining typed configuration in .ts files.
+ *
+ * Provides autocomplete and type checking when authoring config files.
+ * Pass-through function that returns config unchanged.
+ *
+ * @param config - Configuration object
+ * @returns Same config object (typed)
+ *
+ * @category Helper
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * // effect-migrate.config.ts
+ * import { defineConfig } from "@effect-migrate/core"
+ *
+ * export default defineConfig({
+ *   version: 1,
+ *   paths: { exclude: ["node_modules/**"] },
+ *   patterns: [...]
+ * })
+ * ```
+ */
 export const defineConfig = (
   config: Schema.Schema.Type<typeof ConfigSchema>
 ): Schema.Schema.Type<typeof ConfigSchema> => config
 
+/**
+ * Load and validate configuration from file.
+ *
+ * Supports .json, .js, and .ts config files. TypeScript configs require
+ * the 'tsx' package for dynamic loading. Validates loaded config against
+ * ConfigSchema and returns typed Config object.
+ *
+ * @param configPath - Path to config file (relative or absolute)
+ * @returns Effect containing validated Config
+ *
+ * @category Effect
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * const config = yield* loadConfig("./effect-migrate.config.ts")
+ * // config is fully typed and validated
+ * ```
+ */
 export const loadConfig = (configPath: string) =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem

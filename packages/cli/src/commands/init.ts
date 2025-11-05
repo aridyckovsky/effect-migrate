@@ -1,9 +1,39 @@
+/**
+ * Init Command - Generate default configuration file
+ *
+ * This module provides the `init` CLI command that creates a starter
+ * effect-migrate.config.ts file with example patterns, boundaries,
+ * and sensible defaults for TypeScript projects.
+ *
+ * ## Usage
+ *
+ * ```bash
+ * # Create config file (fails if exists)
+ * effect-migrate init
+ *
+ * # Overwrite existing config
+ * effect-migrate init --force
+ * ```
+ *
+ * @module @effect-migrate/cli/commands/init
+ * @since 0.1.0
+ */
+
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 
+/**
+ * Default configuration template with examples.
+ *
+ * Includes starter patterns, boundaries, presets, and path configuration
+ * suitable for TypeScript projects migrating to Effect.
+ *
+ * @category Constant
+ * @since 0.1.0
+ */
 const DEFAULT_CONFIG = `import { ConfigSchema } from "@effect-migrate/core"
 
 export default {
@@ -59,6 +89,33 @@ export default {
 }
 `
 
+/**
+ * CLI command to initialize a new effect-migrate config file.
+ *
+ * Creates effect-migrate.config.ts with default configuration including
+ * example pattern rules, boundary rules, preset references, and path settings.
+ *
+ * By default, fails if config file already exists. Use --force to overwrite.
+ *
+ * Exit codes:
+ * - 0: Config file created successfully
+ * - 1: Config file exists (without --force) or filesystem error
+ *
+ * @category CLI Command
+ * @since 0.1.0
+ *
+ * @example
+ * ```bash
+ * # Create new config file
+ * effect-migrate init
+ * # => ✅ Created effect-migrate.config.ts
+ * # => Next steps: ...
+ *
+ * # Force overwrite existing config
+ * effect-migrate init --force
+ * # => ✅ Created effect-migrate.config.ts (overwrote existing)
+ * ```
+ */
 export const initCommand = Command.make(
   "init",
   {
