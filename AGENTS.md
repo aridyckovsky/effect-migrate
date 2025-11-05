@@ -646,7 +646,24 @@ git commit -m "chore: add changeset for lazy file loading"
 git push origin feat/core-file-caching
 ```
 
-#### 4. Open Pull Request
+#### 4. Draft PR Description (Required for AI Agents)
+
+**IMPORTANT:** Before opening a PR, AI agents **MUST** create a PR draft document:
+
+```bash
+# Create draft in docs/agents/prs/drafts/
+# Filename should match branch name or feature
+docs/agents/prs/drafts/feat-core-file-caching.md
+```
+
+**Draft must include:**
+- Full YAML frontmatter (created, lastUpdated, author, status, thread, audience, tags)
+- Complete PR description following the template below
+- Agent context section with implementation approach and thread URL
+
+See [@docs/agents/AGENTS.md](./docs/agents/AGENTS.md) for PR draft requirements.
+
+#### 5. Open Pull Request
 
 **PR Title:** Use conventional commit format (will become squash commit message)
 
@@ -726,7 +743,7 @@ pnpm test
 - @docs/agents/plans/lazy-file-loading.md
 ```
 
-#### 5. Address CI Feedback
+#### 6. Address CI Feedback
 
 **If CI fails:**
 
@@ -746,13 +763,13 @@ git commit -m "fix: address CI feedback"
 git push origin feat/core-file-caching
 ```
 
-#### 6. Respond to Review Comments
+#### 7. Respond to Review Comments
 
 - Address all comments
 - Push new commits (don't force-push during review)
 - Mark conversations as resolved when fixed
 
-#### 7. Merge (Maintainer Action)
+#### 8. Merge (Maintainer Action)
 
 - Maintainers will **squash-merge** into `main`
 - PR title becomes commit message

@@ -12,6 +12,7 @@ import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { AmpContextIndex, writeAmpContext } from "../../src/amp/context-writer.js"
+import { addThread } from "../../src/amp/thread-manager.js"
 
 describe("context-writer", () => {
   const testConfig: Config = {
@@ -160,5 +161,57 @@ describe("context-writer", () => {
 
       expect(index.schemaVersion).toBe("1.0.0")
       expect(index.toolVersion).toBe("9.9.9")
+    }).pipe(Effect.provide(NodeContext.layer)))
+
+  it.scoped("should reference threads.json in index when threads exist", () =>
+    Effect.gen(function*() {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      const tmpDir = yield* fs.makeTempDirectoryScoped()
+      const outputDir = path.join(tmpDir, "amp-test")
+
+      // Pre-create a thread entry
+      yield* addThread(
+        outputDir,
+        { url: "https://ampcode.com/threads/T-12345678-abcd-1234-5678-123456789abc" }
+      )
+
+      // Generate context
+      yield* writeAmpContext(outputDir, testResults, testConfig)
+
+      // Read and decode index.json
+      const indexPath = path.join(outputDir, "index.json")
+      const indexContent = yield* fs.readFileString(indexPath)
+      const index = yield* Effect.try({
+        try: () => JSON.parse(indexContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
+
+      // Should reference threads.json when threads exist
+      expect(index.files.threads).toBe("threads.json")
+    }).pipe(Effect.provide(NodeContext.layer)))
+
+  it.scoped("should omit threads field in index when no threads exist", () =>
+    Effect.gen(function*() {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      const tmpDir = yield* fs.makeTempDirectoryScoped()
+      const outputDir = path.join(tmpDir, "amp-test")
+
+      // Generate context WITHOUT creating threads
+      yield* writeAmpContext(outputDir, testResults, testConfig)
+
+      // Read and decode index.json
+      const indexPath = path.join(outputDir, "index.json")
+      const indexContent = yield* fs.readFileString(indexPath)
+      const index = yield* Effect.try({
+        try: () => JSON.parse(indexContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
+
+      // Should NOT have threads field (omitted, not null)
+      expect(index.files.threads).toBeUndefined()
     }).pipe(Effect.provide(NodeContext.layer)))
 })

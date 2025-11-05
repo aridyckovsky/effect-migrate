@@ -116,18 +116,20 @@ docs/agents/
 
 **When to create:**
 
-- **Drafts (`prs/drafts/`)**: When preparing a PR description before opening the PR
+- **Drafts (`prs/drafts/`)**: **REQUIRED before opening any PR** - AI agents must create a draft first
 - **Reviews (`prs/reviews/`)**: When conducting detailed code reviews, especially Amp-generated reviews
 
 **Characteristics:**
 
 **Drafts:**
 
+- **MUST be created BEFORE opening the PR on GitHub**
 - **MUST include full YAML frontmatter** (created, lastUpdated, author, status, thread, audience, tags)
 - Well-structured PR descriptions
 - Include context, changes, and testing details
-- Follow PR template conventions
-- Use descriptive filenames matching PR branch or feature name
+- Follow PR template conventions from root AGENTS.md
+- Use descriptive filenames matching PR branch or feature name (e.g., `fix-cli-index-threads-reference.md`)
+- Set status to `complete` when ready to use for PR
 
 **Reviews:**
 
