@@ -486,6 +486,512 @@ The npm organization must exist at https://www.npmjs.com/org/effect-migrate befo
 
 ---
 
+## Git and GitHub Workflows
+
+This section defines git branching strategy, commit conventions, and PR workflows for AI agents working on this repository.
+
+**For human developers:** See [CONTRIBUTING.md](./CONTRIBUTING.md) for a more detailed guide.
+
+### Branching Strategy
+
+We use a **simple, linear branching model** with a protected `main` branch:
+
+**Branch Rules:**
+
+1. **`main` branch:**
+   - Always green (all CI checks pass)
+   - Protected (no direct pushes)
+   - Only accepts squash-merge PRs
+   - Linear history maintained
+
+2. **Feature/Fix branches:**
+   - Branch from latest `main`
+   - One purpose per branch
+   - Deleted after merge
+
+### Branch Naming Convention
+
+**Format:** `<type>/<scope>-<description>`
+
+**Types:**
+
+- `feat/` - New features
+- `fix/` - Bug fixes (one bug per branch/PR)
+- `docs/` - Documentation changes
+- `chore/` - Maintenance, dependencies, tooling
+- `test/` - Test additions/updates
+- `refactor/` - Code refactoring (no behavior change)
+
+**Examples:**
+
+```bash
+feat/core-lazy-file-loading
+fix/cli-exit-code-on-error
+docs/contributing-workflow
+chore/deps-update-effect
+test/core-file-discovery
+refactor/cli-output-formatters
+```
+
+**Scopes** (optional but recommended):
+
+- `core` - @effect-migrate/core package
+- `cli` - @effect-migrate/cli package
+- `preset-basic` - @effect-migrate/preset-basic package
+- Omit for repo-wide changes
+
+### Creating a Branch
+
+**ALWAYS start from latest `main`:**
+
+```bash
+# 1. Ensure you're on main
+git checkout main
+
+# 2. Pull latest changes
+git pull origin main
+
+# 3. Create feature branch
+git checkout -b feat/core-file-caching
+
+# 4. Verify branch
+git branch --show-current  # Should show: feat/core-file-caching
+```
+
+### Commit Message Format
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+**Format:** `<type>(<scope>): <description>`
+
+**Examples:**
+
+```bash
+feat(core): add lazy file loading for large repositories
+fix(cli): exit with code 1 when audit finds violations
+docs(preset-basic): document no-async-await rule
+test(core): add tests for ImportIndex service
+chore(deps): update @effect/platform to 0.92.2
+refactor(cli): simplify output formatter logic
+```
+
+**Types match branch types:**
+
+- `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `ci`
+
+**Description guidelines:**
+
+- Use imperative mood ("add" not "added")
+- No period at end
+- Keep under 72 characters
+- Be specific and descriptive
+
+### Pull Request Workflow
+
+#### 1. Before Creating PR
+
+**Run all checks locally:**
+
+```bash
+# Type checking
+pnpm build:types
+pnpm typecheck
+
+# Linting
+pnpm lint
+
+# Build
+pnpm build
+
+# Tests
+pnpm test
+```
+
+**All must pass before pushing.**
+
+#### 2. Create Changeset (if needed)
+
+**When to create changeset:**
+
+- ✅ New features
+- ✅ Bug fixes
+- ✅ Breaking changes
+- ✅ User-facing dependency updates
+
+**When to skip changeset:**
+
+- ❌ Internal refactors (no behavior change)
+- ❌ Test-only changes
+- ❌ Documentation updates
+- ❌ Dev dependency updates
+
+**Create changeset:**
+
+```bash
+pnpm changeset
+
+# Interactive prompts:
+# 1. Select affected packages
+# 2. Choose bump type (major/minor/patch)
+# 3. Write user-facing summary
+
+# Commit changeset
+git add .changeset/*.md
+git commit -m "chore: add changeset for lazy file loading"
+```
+
+#### 3. Push Branch
+
+```bash
+git push origin feat/core-file-caching
+```
+
+#### 4. Open Pull Request
+
+**PR Title:** Use conventional commit format (will become squash commit message)
+
+```
+feat(core): add lazy file loading for large repositories
+```
+
+**PR Description Template:**
+
+```markdown
+## What
+
+Brief summary of what changed.
+
+## Why
+
+Why this change is needed (link to issue/thread if applicable).
+
+## Scope
+
+Which packages are affected:
+
+- `@effect-migrate/core`
+- `@effect-migrate/cli`
+
+## Changeset
+
+- [x] Changeset added
+- [ ] No changeset needed (internal change only)
+
+**Changeset summary:**
+
+> Add lazy file loading to prevent OOM on large repositories with 10k+ files
+
+## Testing
+
+```bash
+pnpm build:types
+pnpm typecheck
+pnpm lint
+pnpm build
+pnpm test
+```
+
+**New tests:**
+
+- `packages/core/src/__tests__/file-discovery-lazy.test.ts`
+
+**Updated tests:**
+
+- `packages/core/src/__tests__/file-discovery.test.ts`
+
+## Checklist
+
+- [x] Code follows Effect-TS best practices
+- [x] TypeScript strict mode passes
+- [x] All tests pass
+- [x] Linter passes
+- [x] Build succeeds
+- [x] Changeset created
+- [x] Documentation updated
+
+## Agent Context (for AI agents)
+
+**Implementation approach:**
+
+- Used Effect.acquireRelease for resource management
+- Implemented lazy iteration with Effect.forEach({ concurrency: 1 })
+- Added FileDiscoveryService.listFilesLazy method
+
+**Amp Thread(s):**
+
+- https://ampcode.com/threads/T-a38f981d-52da-47b1-818c-fbaa9ab56e0c (example)
+
+**Related docs:**
+
+- @docs/agents/plans/lazy-file-loading.md
+```
+
+#### 5. Address CI Feedback
+
+**If CI fails:**
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Fix issues locally
+# ... make fixes ...
+
+# Run checks again
+pnpm build:types && pnpm typecheck && pnpm lint && pnpm build && pnpm test
+
+# Commit fixes
+git add .
+git commit -m "fix: address CI feedback"
+git push origin feat/core-file-caching
+```
+
+#### 6. Respond to Review Comments
+
+- Address all comments
+- Push new commits (don't force-push during review)
+- Mark conversations as resolved when fixed
+
+#### 7. Merge (Maintainer Action)
+
+- Maintainers will **squash-merge** into `main`
+- PR title becomes commit message
+- Branch automatically deleted
+
+### AI Agent Restrictions
+
+**As an AI agent (Amp), you MUST follow these rules:**
+
+#### Rule 1: One Bug Per PR
+
+**When fixing multiple bugs:**
+
+- ❌ **NEVER combine multiple bug fixes in one PR**
+- ✅ **Create separate branch + PR for each bug**
+- ✅ **Work on multiple PRs in parallel if needed**
+
+**Example:**
+
+```bash
+# Bug 1: CLI exit code
+git checkout -b fix/cli-exit-code-on-error
+# ... implement fix ...
+git commit -m "fix(cli): exit with code 1 on audit violations"
+git push origin fix/cli-exit-code-on-error
+# Open PR #1
+
+# Bug 2: Import resolution (separate PR)
+git checkout main
+git pull origin main
+git checkout -b fix/core-import-resolution
+# ... implement fix ...
+git commit -m "fix(core): resolve imports with .js extension"
+git push origin fix/core-import-resolution
+# Open PR #2
+```
+
+#### Rule 2: Never Push to `main` Directly
+
+**Always use PRs:**
+
+```bash
+# ❌ NEVER do this
+git checkout main
+git commit -m "fix: something"
+git push origin main
+
+# ✅ ALWAYS do this
+git checkout -b fix/something
+git commit -m "fix: something"
+git push origin fix/something
+# Then open PR
+```
+
+#### Rule 3: Keep PRs Focused
+
+**One logical change per PR:**
+
+- ✅ One feature
+- ✅ One bug fix
+- ✅ One refactor
+- ❌ Multiple unrelated changes
+
+**Reasoning:** Makes review easier, enables faster merges, simplifies rollback if needed.
+
+#### Rule 4: Always Run Checks Before Pushing
+
+**Non-negotiable command sequence:**
+
+```bash
+pnpm build:types && \
+pnpm typecheck && \
+pnpm lint && \
+pnpm build && \
+pnpm test
+```
+
+**If any fail, fix before pushing.**
+
+#### Rule 5: Include Agent Context in PRs
+
+**Add "Agent Context" section to every PR:**
+
+```markdown
+## Agent Context (for AI agents)
+
+**Implementation approach:**
+
+- Brief summary of how you implemented the feature
+- Key design decisions
+- Effect patterns used
+
+**Amp Thread(s):**
+
+- https://ampcode.com/threads/T-a38f981d-52da-47b1-818c-fbaa9ab56e0c (example)
+
+**Related docs:**
+
+- @docs/agents/plans/feature-name.md (if applicable)
+```
+
+**Purpose:** Helps future AI agents understand implementation context.
+
+### Working with Multiple Parallel PRs
+
+**Scenario:** You're asked to fix 3 bugs discovered in an audit.
+
+**Workflow:**
+
+```bash
+# Fix 1: CLI exit code
+git checkout main
+git pull origin main
+git checkout -b fix/cli-exit-code
+# ... implement, test, commit ...
+git push origin fix/cli-exit-code
+# Open PR #1
+
+# Fix 2: Config validation (separate branch)
+git checkout main
+git pull origin main
+git checkout -b fix/core-config-validation
+# ... implement, test, commit ...
+git push origin fix/core-config-validation
+# Open PR #2
+
+# Fix 3: Import resolution (separate branch)
+git checkout main
+git pull origin main
+git checkout -b fix/core-import-resolution
+# ... implement, test, commit ...
+git push origin fix/core-import-resolution
+# Open PR #3
+```
+
+**Key points:**
+
+- Each PR is independent
+- Each can be reviewed/merged separately
+- Each has its own changeset
+- All branch from latest `main`
+
+### Handling Merge Conflicts
+
+**If `main` moves while your PR is open:**
+
+```bash
+# 1. Fetch latest
+git fetch origin
+
+# 2. Rebase your branch onto main
+git checkout feat/your-feature
+git rebase origin/main
+
+# 3. Resolve conflicts if any
+# ... fix conflicts in files ...
+git add <resolved-files>
+git rebase --continue
+
+# 4. Run checks again
+pnpm build:types && pnpm typecheck && pnpm lint && pnpm build && pnpm test
+
+# 5. Force-push (safe during rebase)
+git push origin feat/your-feature --force-with-lease
+```
+
+### Recording Implementation Threads
+
+**Note:** The `effect-migrate thread` subcommands are planned and not yet available. Until implemented, capture Amp thread URL(s) manually in the PR description's "Agent Context" section.
+
+**Optional but recommended:**
+
+If you want to record the Amp thread where implementation happened:
+
+```bash
+# Using the thread command (if implemented)
+effect-migrate thread add \
+  --url https://ampcode.com/threads/T-a38f981d-52da-47b1-818c-fbaa9ab56e0c \
+  --tags "feature,core,lazy-loading" \
+  --scope "packages/core/src/**"
+
+# Commit the thread metadata
+git add .amp/threads.json
+git commit -m "chore: record implementation thread"
+```
+
+This creates/updates `.amp/threads.json` for future reference and context.
+
+### Summary: Complete PR Workflow Example
+
+**Example: Adding JSON output formatter to CLI**
+
+```bash
+# 1. Start from main
+git checkout main
+git pull origin main
+
+# 2. Create branch
+git checkout -b feat/cli-json-formatter
+
+# 3. Implement feature
+# ... edit files ...
+
+# 4. Run all checks
+pnpm build:types
+pnpm typecheck
+pnpm lint
+pnpm build
+pnpm test
+
+# 5. Create changeset
+pnpm changeset
+# Select: @effect-migrate/cli
+# Bump: minor
+# Summary: "Add JSON output format to audit and metrics commands"
+
+# 6. Commit changes
+git add .
+git commit -m "feat(cli): add JSON output formatter"
+
+# 7. Commit changeset
+git add .changeset/*.md
+git commit -m "chore: add changeset for JSON formatter"
+
+# 8. Push branch
+git push origin feat/cli-json-formatter
+
+# 9. Open PR on GitHub
+# Title: feat(cli): add JSON output formatter
+# Fill out all required sections in description
+# Include "Agent Context" section with thread URL
+
+# 10. Wait for CI ✅
+# 11. Address review comments if any
+# 12. Maintainer squash-merges to main
+```
+
+---
+
 ## Testing
 
 ### Testing with @effect/vitest

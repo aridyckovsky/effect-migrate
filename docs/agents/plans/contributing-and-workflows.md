@@ -2,7 +2,7 @@
 created: 2025-11-05
 lastUpdated: 2025-11-05
 author: Generated via Amp (Oracle + Librarian analysis)
-status: ready
+status: complete
 thread: https://ampcode.com/threads/T-8b3e5303-5997-447c-95c9-b32c5e7c3eaa
 related: ../concepts/amp-integration.md
 audience: Development team (human and AI agents)
@@ -143,7 +143,7 @@ We use a simple, linear branching model with protected `main` branch:
   - Only merge via squash commits
   - Never push directly
 
-- **`feature/<area>-<description>`** - New features
+- **`feat/<area>-<description>`** - New features
   - Example: `feature/core-file-discovery-cache`
   - Example: `feature/cli-json-formatter`
 
@@ -261,8 +261,8 @@ N/A
 ## Related
 
 - Issue: #123
-- Amp Thread: https://ampcode.com/threads/T-...
 - Related PR: #456
+- Amp Thread(s): https://ampcode.com/threads/T-..., https://ampcode.com/threads/T-...
 
 ## Agent Context (if applicable)
 

@@ -9,6 +9,9 @@ pnpm-lock.yaml
 package-lock.json
 yarn.lock
 
+# GitHub files that should not be formatted
+CODEOWNERS
+
 # Generated files in build output
 build/**/*.json
 build/**/*.js
