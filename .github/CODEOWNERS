@@ -1,0 +1,27 @@
+# CODEOWNERS - Defines individuals or teams responsible for code in this repository
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Each line is a file pattern followed by one or more owners.
+# Order is important; the last matching pattern takes the most precedence.
+
+# Default owner for everything in the repo
+* @aridyckovsky
+
+# Package-specific ownership
+packages/core/** @aridyckovsky
+packages/cli/** @aridyckovsky
+packages/preset-basic/** @aridyckovsky
+
+# Documentation
+docs/** @aridyckovsky
+*.md @aridyckovsky
+
+# CI/CD and automation
+.github/** @aridyckovsky
+
+# Root configuration files
+/*.json @aridyckovsky
+/*.yaml @aridyckovsky
+/*.yml @aridyckovsky
+/*.ts @aridyckovsky
+/*.mjs @aridyckovsky

@@ -488,9 +488,14 @@ For guides on creating implementation plans, concept documents, and post-mortems
 
 @docs/agents/AGENTS.md
 
+**For human contributors:** See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, development workflow, branching strategy, and PR process.
+
+**For AI agents:** The root AGENTS.md includes a comprehensive "Git and GitHub Workflows" section with branching rules, commit conventions, and PR requirements.
+
 Current active plans:
 
 - @docs/agents/plans/thread-command.md
+- @docs/agents/plans/contributing-and-workflows.md
 
 Key concepts:
 
