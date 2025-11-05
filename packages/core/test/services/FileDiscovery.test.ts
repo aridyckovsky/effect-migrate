@@ -214,4 +214,46 @@ layer(TestLayer)("FileDiscovery", it => {
 
       expect(files).toEqual([])
     }))
+
+  it.effect("should exclude nested directories with absolute pattern (/**)", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      const fixturesDir = path.join(cwd, "test/fixtures/sample-project")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${fixturesDir}/**/*.{ts,js}`],
+        [`${fixturesDir}/**/utils/**`]
+      )
+
+      expect(files.every(f => !f.includes("/utils/"))).toBe(true)
+    }))
+
+  it.effect("should exclude nested directories with relative pattern (/**)", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      const fixturesDir = path.join(cwd, "test/fixtures/sample-project")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${fixturesDir}/**/*.{ts,js}`],
+        ["**/utils/**"]
+      )
+
+      expect(files.every(f => !f.includes("/utils/"))).toBe(true)
+    }))
+
+  it.effect("should exclude nested directories when exclude omits trailing /**", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      const fixturesDir = path.join(cwd, "test/fixtures/sample-project")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${fixturesDir}/**/*.{ts,js}`],
+        [`${fixturesDir}/**/services`]
+      )
+
+      expect(files.every(f => !f.includes("/services/"))).toBe(true)
+    }))
 })
