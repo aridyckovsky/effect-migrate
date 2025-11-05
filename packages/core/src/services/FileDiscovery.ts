@@ -1,10 +1,30 @@
+/**
+ * File Discovery Service - Abstract file system operations with lazy loading and caching
+ *
+ * This module provides a service for discovering and reading files with:
+ * - Glob pattern matching
+ * - Lazy file loading (list paths without reading contents)
+ * - Content caching to avoid redundant I/O
+ * - Platform-agnostic file system abstraction
+ *
+ * @module @effect-migrate/core/services/FileDiscovery
+ * @since 0.1.0
+ */
+
 import type { PlatformError } from "@effect/platform/Error"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import { matchGlob } from "../util/glob.js"
 
+/**
+ * Supported text file extensions for content reading.
+ *
+ * @category Constant
+ * @since 0.1.0
+ */
 const TEXT_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
@@ -19,47 +39,66 @@ const TEXT_EXTENSIONS = new Set([
   ".yaml"
 ])
 
-export class FileDiscovery extends Context.Tag("FileDiscovery")<
-  FileDiscovery,
-  {
-    readonly listFiles: (
-      globs: ReadonlyArray<string>,
-      exclude?: ReadonlyArray<string>
-    ) => Effect.Effect<string[], PlatformError>
-    readonly readFile: (
-      path: string
-    ) => Effect.Effect<string, PlatformError>
-    readonly isTextFile: (path: string) => boolean
-    readonly buildFileIndex: (
-      globs: ReadonlyArray<string>,
-      exclude?: ReadonlyArray<string>,
-      concurrency?: number
-    ) => Effect.Effect<Map<string, string>, PlatformError>
-  }
->() {}
+/**
+ * File discovery service interface.
+ *
+ * Provides methods for listing files by glob patterns and reading file contents
+ * with automatic caching. All file operations are lazy to avoid loading
+ * unnecessary files into memory.
+ *
+ * @category Service
+ * @since 0.1.0
+ */
+export interface FileDiscoveryService {
+  /** List files matching glob patterns with optional exclusions */
+  readonly listFiles: (
+    globs: ReadonlyArray<string>,
+    exclude?: ReadonlyArray<string>
+  ) => Effect.Effect<string[], PlatformError>
 
-const normalize = (p: string) => p.replace(/\\/g, "/")
+  /** Read file content (cached after first read) */
+  readonly readFile: (
+    path: string
+  ) => Effect.Effect<string, PlatformError>
 
-const matchGlob = (pattern: string, path: string): boolean => {
-  // Expand braces like {ts,js} -> (ts|js)
-  let expandedPattern = pattern.replace(/\{([^}]+)\}/g, (_match, group) => {
-    const options = group.split(",")
-    return `(${options.join("|")})`
-  })
+  /** Check if file extension is in TEXT_EXTENSIONS set */
+  readonly isTextFile: (path: string) => boolean
 
-  const regexPattern = expandedPattern
-    .replace(/\*\*\//g, "GLOBSTAR_SLASH") // **/ placeholder
-    .replace(/\/\*\*/g, "SLASH_GLOBSTAR") // /** placeholder
-    .replace(/\./g, "\\.") // Escape dots
-    .replace(/\*/g, "[^/]*") // Single *
-    .replace(/\?/g, "[^/]")
-    .replace(/GLOBSTAR_SLASH/g, "(.*/)?") // **/ matches zero or more path segments
-    .replace(/SLASH_GLOBSTAR/g, "(/.*)?") // /** matches zero or more path segments
-
-  const regex = new RegExp(`^${regexPattern}$`)
-  return regex.test(path)
+  /** Build complete file index with concurrent reads */
+  readonly buildFileIndex: (
+    globs: ReadonlyArray<string>,
+    exclude?: ReadonlyArray<string>,
+    concurrency?: number
+  ) => Effect.Effect<Map<string, string>, PlatformError>
 }
 
+/**
+ * File discovery service tag for dependency injection.
+ *
+ * @category Service
+ * @since 0.1.0
+ */
+export class FileDiscovery extends Context.Tag("FileDiscovery")<
+  FileDiscovery,
+  FileDiscoveryService
+>() {}
+
+/**
+ * Normalize path separators to forward slashes (POSIX-style).
+ *
+ * @category Internal
+ * @since 0.1.0
+ */
+const normalize = (p: string) => p.replace(/\\/g, "/")
+
+/**
+ * Extract base directory from glob pattern for optimized traversal.
+ *
+ * Returns the longest static path prefix before any glob metacharacters.
+ *
+ * @category Internal
+ * @since 0.1.0
+ */
 const getGlobBase = (pattern: string, pathSvc: Path.Path): string => {
   const p = normalize(pattern)
   const firstMeta = p.search(/[*?[{]/)
@@ -70,6 +109,15 @@ const getGlobBase = (pattern: string, pathSvc: Path.Path): string => {
   return slashIdx === -1 ? "" : p.slice(0, slashIdx)
 }
 
+/**
+ * Determine if file should be included based on glob patterns.
+ *
+ * A file is included if it matches at least one include glob and
+ * doesn't match any exclude glob.
+ *
+ * @category Internal
+ * @since 0.1.0
+ */
 const shouldInclude = (
   absPath: string,
   relPath: string,
@@ -82,6 +130,32 @@ const shouldInclude = (
   return include && !isExcluded
 }
 
+/**
+ * Live implementation of FileDiscovery service.
+ *
+ * Provides platform-agnostic file discovery with:
+ * - Lazy file loading (lists paths without reading contents upfront)
+ * - Automatic content caching for performance
+ * - Concurrent file reading with configurable limits
+ * - Optimized glob matching by traversing from pattern base
+ *
+ * @category Layer
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * import { FileDiscovery, FileDiscoveryLive } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const discovery = yield* FileDiscovery
+ *   const files = yield* discovery.listFiles(
+ *     ["src/**\/*.ts"],
+ *     ["node_modules/**", "dist/**"]
+ *   )
+ *   return files
+ * }).pipe(Effect.provide(FileDiscoveryLive))
+ * ```
+ */
 export const FileDiscoveryLive = Layer.effect(
   FileDiscovery,
   Effect.gen(function*() {
@@ -125,8 +199,17 @@ export const FileDiscoveryLive = Layer.effect(
               const full = normalize(path.join(dirAbs, entry))
               const stat = yield* fs.stat(full)
               if (stat.type === "Directory") {
-                const sub = yield* walk(full)
-                out.push(...sub)
+                // Check if directory itself is excluded before recursing
+                const relDir = normalize(path.relative(cwdNorm, full))
+                const dirPatterns = [`${relDir}/**`, `**/${entry}/**`, `${entry}/**`]
+                const isExcluded = dirPatterns.some(pat =>
+                  excludePats.some(excl => matchGlob(excl, pat))
+                )
+
+                if (!isExcluded) {
+                  const sub = yield* walk(full)
+                  out.push(...sub)
+                }
               } else if (stat.type === "File") {
                 const rel = normalize(path.relative(cwdNorm, full))
                 if (shouldInclude(full, rel, includePats, excludePats)) {

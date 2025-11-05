@@ -14,36 +14,53 @@
 
 ---
 
+> **Co-authored by humans and Amp**  
+> This repo is developed collaboratively by the maintainers and Amp coding agents. We use shared threads and structured context to keep the agent aligned across sessions and contributors.
+
+**Who is this for?**
+
+- **Developers on this repo:** Build, test, and extend rules. See [AGENTS.md](./AGENTS.md) for project conventions.
+- **Amp users migrating to Effect:** Use effect-migrate to generate `.amp` context, then drive refactors in Amp threads with `@` references and `read-thread`.
+- **Other coding agents/tools:** Read `.amp/effect-migrate/index.json` (MCP-style) to ingest context programmatically.
+- **Teams adopting Effect with Amp:** Treat effect-migrate as your migration "source of truth" and Amp as the refactoring co-pilot; track progress and threads.
+
+---
+
 > **⚠️ Early Stage Development**  
 > This project is in active development. Core architecture is in place, but features are not yet fully implemented. Contributions and feedback welcome!
 
 ## What is effect-migrate?
 
-**effect-migrate** helps teams migrate TypeScript codebases to [Effect-TS](https://effect.website) by detecting legacy patterns, enforcing architectural boundaries, and providing structured context for [Amp](https://ampcode.com) coding agents.
+**effect-migrate** helps teams migrate TypeScript codebases to [Effect-TS](https://effect.website) by detecting legacy patterns, enforcing boundaries, and writing a persistent migration "source of truth" to `.amp/effect-migrate/index.json`.
+
+It's co-authored by the maintainers and [Amp](https://ampcode.com): the tool surfaces _what_ to change, and Amp (or other agents) performs refactors while carrying context forward across sessions and teammates.
 
 ### Key Features
 
 - 🔍 **Pattern Detection** — Identify legacy async/await, Promise, and error handling patterns
 - 🏗️ **Boundary Enforcement** — Maintain clean separation between Effect and legacy code
 - 📊 **Migration Tracking** — Monitor progress with metrics and completion percentages
-- 🤖 **Amp Context Generation** — Generate structured context files that keep Amp informed across sessions
+- 🤖 **Amp Context Generation** — Writes `index.json`, `audit.json`, `metrics.json` for agent ingestion
+- 🔗 **Thread Continuity** — Track relevant Amp threads (`threads.json`) to resume work with `read-thread`
+- 📎 **@-mentions First** — Reference `@.amp/effect-migrate/index.json` to load the whole context
+- 🔧 **TypeScript SDK Friendly** — Drive programmatic workflows via Amp's TypeScript SDK
 - 🔌 **Extensible Rules** — Create custom rules and share presets with your team
 - ⚡ **Built with Effect** — Dogfoods Effect patterns: `Effect.gen`, Layers, Services, and Schema validation
 
 ---
 
-## Why Use effect-migrate with Amp?
+## Why Use effect-migrate?
 
-Migrating to Effect is powerful but challenging. When working with Amp, you typically need to re-explain your migration strategy in every new thread:
+Effect migrations are iterative and cross-cutting. Without persistent context, coding agents start from scratch in every session:
 
 **Traditional workflow (without effect-migrate):**
 
 ```
 You: "We're migrating to Effect. Don't use async/await in migrated files."
-Amp: [suggests async function]
+Agent: [suggests async function]
 You: "No, I said use Effect.gen instead"
-Amp: [fixes it]
-[Next thread, next day...]
+Agent: [fixes it]
+[Next session, next day...]
 You: "Remember we're migrating to Effect..."
 ```
 
@@ -54,17 +71,42 @@ $ effect-migrate audit --amp-out .amp/effect-migrate
 ```
 
 ```
-You: @.amp/effect-migrate/context.json
-Amp: [automatically understands migration state, suggests Effect patterns]
+You: Read @.amp/effect-migrate/index.json
+Agent: [loads audit, metrics, threads via the index, proposes Effect-first refactors]
 ```
 
-**effect-migrate** eliminates repetition by:
+**Continuity across sessions:**
 
-- ✅ Maintaining persistent migration context that Amp reads automatically
-- ✅ Tracking which files are migrated vs. legacy
-- ✅ Enforcing rules so Amp suggests the right patterns
-- ✅ Providing an audit trail of migration work across Amp threads
-- ✅ Sharing consistent context when teammates collaborate
+- Start a new thread: `Read @.amp/effect-migrate/index.json`
+- Reference prior work: `read-thread https://ampcode.com/threads/T-... and then load @.amp/effect-migrate/index.json`
+
+**The context captures:**
+
+- Which files are migrated vs. legacy
+- Active rules/boundaries and their docs
+- Progress metrics and next steps
+- Related threads to resume work
+
+### Built with Amp, for Amp
+
+We actively co-develop this tool with Amp and use it on this repo.
+
+#### Real collaboration
+
+- **Source of truth:** We run `effect-migrate audit/metrics` and commit `.amp/effect-migrate/index.json` (entry point), `audit.json`, `metrics.json`, `threads.json`. Amp reads `@.amp/effect-migrate/index.json` to align suggestions.
+- **Threads we share:** We document work in Amp threads and reference them in `.amp/effect-migrate/threads.json`. Anyone can `read-thread` a prior session to pick up where it left off.
+- **Concrete guidance:** [AGENTS.md](./AGENTS.md) encodes Effect-TS conventions (error typing, Layer composition, service design). Amp auto-loads this guidance and applies it during refactors.
+- **Integration details:** See [docs/agents/concepts/amp-integration.md](./docs/agents/concepts/amp-integration.md) and example thread [T-38c593cf](https://ampcode.com/threads/T-38c593cf-0e0f-4570-ad73-dfc2c3b1d6c9)
+
+#### Why Amp fits this workflow
+
+- **Structured ingestion:** Amp honors `@` references; `index.json` provides a single resource index (MCP-style) that points to audit/metrics/threads.
+- **Persistence and sharing:** `read-thread` + thread visibility means continuity across sessions, teammates, and time.
+- **Programmatic control:** Amp's TypeScript SDK lets teams script "load context → propose plan → apply changes → regenerate artifacts."
+
+**Honest note:** effect-migrate's pattern rules are conservative and may surface false positives; Amp's suggestions still require review. We prefer CLI regeneration over manually editing context files to avoid drift.
+
+**The result:** Static analysis from the tool + high-quality refactors from Amp + shared context tying both together. Teams can extend rules and keep the agent aligned over weeks-long migrations without centralizing knowledge in a single prompt.
 
 ---
 
@@ -196,35 +238,134 @@ This creates `.amp/effect-migrate/context.json`:
 }
 ```
 
-### 4. Use Context in Amp
+### 4. Track Migration Work in Amp Threads
+
+Track Amp threads where migration work occurred:
+
+```bash
+pnpm effect-migrate thread add \
+  --url https://ampcode.com/threads/T-abc123... \
+  --tags "migration,api" \
+  --scope "src/api/*" \
+  --amp-out .amp/effect-migrate
+```
+
+List tracked threads:
+
+```bash
+pnpm effect-migrate thread list --amp-out .amp/effect-migrate
+```
+
+**Output:**
+
+```
+Tracked threads (2):
+
+t-def45678-9012-cdef-3456-789012345678
+  URL: https://ampcode.com/threads/T-def45678-9012-cdef-3456-789012345678
+  Created: 2025-11-04T23:23:28.651Z
+  Tags: core, refactor
+
+t-abc12345-6789-abcd-ef01-234567890abc
+  URL: https://ampcode.com/threads/T-abc12345-6789-abcd-ef01-234567890abc
+  Created: 2025-11-04T23:23:26.865Z
+  Tags: api, migration
+  Scope: src/api/*
+  Description: Migrated fetchUser to Effect
+```
+
+Thread references are automatically included in `audit.json` context for Amp.
+
+## Troubleshooting
+
+### Thread add fails with "Invalid URL"
+
+Thread URLs must be valid Amp thread URLs matching the format `https://ampcode.com/threads/T-{uuid}`. Ensure your URL starts with `https://ampcode.com/threads/T-` followed by a valid UUID.
+
+```bash
+# ✅ Valid
+pnpm effect-migrate thread add --url https://ampcode.com/threads/T-abc12345-6789-abcd-ef01-234567890abc
+
+# ❌ Invalid
+pnpm effect-migrate thread add --url ampcode.com/threads/T-abc123
+```
+
+### Thread add fails with "Thread URL cannot be empty"
+
+The `--url` flag is required when adding threads. Provide a valid Amp thread URL.
+
+```bash
+pnpm effect-migrate thread add --url https://ampcode.com/threads/T-abc12345-6789-abcd-ef01-234567890abc
+```
+
+### Threads not showing in audit.json
+
+Thread metadata is stored in `threads.json` and referenced in `audit.json`. Run `audit` after adding threads to regenerate context files:
+
+```bash
+pnpm effect-migrate thread add --url https://ampcode.com/threads/T-...
+pnpm effect-migrate audit --amp-out .amp/effect-migrate
+```
+
+### Tags/scope not merging when re-adding thread
+
+Adding the same thread URL multiple times replaces the existing entry. Tags and scope from the new command override previous values; they are not merged.
+
+### 5. Use Context in Amp
 
 In your Amp thread:
 
 ```
+Read @.amp/effect-migrate/index.json
+Optional: read-thread https://ampcode.com/threads/T-... to reuse prior analysis and decisions.
+
 I'm migrating src/api/fetchUser.ts to Effect.
-Read @.amp/effect-migrate/context.json for current state.
 ```
 
-Amp will automatically:
+Amp will:
 
+- Load audit.json and metrics.json via index.json
 - Know which files are migrated vs. legacy
 - Suggest Effect patterns based on active rules
 - Track progress and next steps
-- Reference previous Amp threads where migration work occurred
+- Cross-reference prior migration threads
+
+### 6. Programmatic Use (Amp TypeScript SDK)
+
+```typescript
+import { execute } from "@sourcegraph/amp-sdk"
+
+async function proposeNextSteps(cwd: string) {
+  const prompt = [
+    "Load @.amp/effect-migrate/index.json",
+    "Read @.amp/effect-migrate/metrics.json and @.amp/effect-migrate/audit.json",
+    "Propose the 3 highest-impact modules to migrate next."
+  ].join("\n")
+
+  for await (const msg of execute({ prompt, options: { cwd, continue: false } })) {
+    if (msg.type === "result") {
+      console.log(msg.result)
+      break
+    }
+  }
+}
+```
+
+See [Amp TypeScript SDK documentation](https://ampcode.com/docs/sdk) for more examples and options.
 
 ---
 
 ## Commands
 
-| Command                           | Description                            | Status      |
-| --------------------------------- | -------------------------------------- | ----------- |
-| `effect-migrate init`             | Create config file                     | 🚧 Planned  |
-| `effect-migrate audit`            | Detect migration issues                | 🚧 Building |
-| `effect-migrate metrics`          | Show migration progress                | 🚧 Planned  |
-| `effect-migrate docs`             | Validate documentation quality         | 🚧 Planned  |
-| `effect-migrate thread add <url>` | Track Amp thread for migration history | 🚧 Planned  |
-| `effect-migrate thread list`      | Show migration-related threads         | 🚧 Planned  |
-| `effect-migrate --help`           | Show help                              | ✅ Working  |
+| Command                                                    | Description                            | Status         |
+| ---------------------------------------------------------- | -------------------------------------- | -------------- |
+| `effect-migrate init`                                      | Create config file                     | ⏳ In Progress |
+| `effect-migrate audit`                                     | Detect migration issues                | 🧪 Dogfooding  |
+| `effect-migrate metrics`                                   | Show migration progress                | ⏳ In Progress |
+| `effect-migrate docs`                                      | Validate documentation quality         | ⏳ In Progress |
+| `effect-migrate thread add --url <url> [--tags] [--scope]` | Track Amp thread for migration history | 🧪 Dogfooding  |
+| `effect-migrate thread list [--json]`                      | Show migration-related threads         | 🧪 Dogfooding  |
+| `effect-migrate --help`                                    | Show help                              | 👍 Working     |
 
 ---
 
@@ -294,6 +435,7 @@ effect-migrate metrics --config effect-migrate.config.json --amp-out .amp
 ## Documentation
 
 - **[AGENTS.md](./AGENTS.md)** — Comprehensive guide for Amp coding agents
+- **[Amp Integration Guide](./docs/agents/concepts/amp-integration.md)** — How `@` references, thread sharing, `read-thread`, and SDK flows work
 - **[Core Package](./packages/core)** — Migration engine architecture and services
 - **[CLI Package](./packages/cli)** — Command-line interface and formatters
 - **[Preset Package](./packages/preset-basic)** — Default migration rules
@@ -337,19 +479,24 @@ Please see [AGENTS.md](./AGENTS.md) for comprehensive development guidelines.
 
 ---
 
-## Inspiration
+## Not Just a Linter
 
-This tool builds on insights from:
+effect-migrate is a **stateful migration orchestrator**, not a generic linter:
+
+**What makes it different:**
+
+- **Stateful migration orchestrator** — Tracks progress, findings, and decisions over time in `.amp/effect-migrate`
+- **Boundary- and plan-aware** — Rules express architectural boundaries; metrics drive prioritization
+- **Agent-native context** — `index.json`/`audit`/`metrics`/`threads` designed for `@` ingestion and `read-thread` continuity
+- **Works with other agents** — The `index.json` is MCP-style JSON; any agent can consume it without Amp-specific APIs
+
+**Linters remain complementary:** Keep your ESLint rules; use effect-migrate to coordinate the refactor and keep AI agents aligned across weeks.
+
+**Inspiration:**
 
 - **ESLint** — Pluggable rule system and severity levels
 - **ts-migrate** — TypeScript migration automation
 - **Production Experience** — Our own refactoring scripts from real Effect migrations
-
-Unlike generic linters, effect-migrate is:
-
-- 🎯 **Effect-aware** — Understands Effect patterns and conventions
-- 📈 **Migration-focused** — Tracks progress, not just violations
-- 🤖 **Amp-native** — Built specifically for Amp coding agents (extensible to other AI agents in the future)
 
 ---
 

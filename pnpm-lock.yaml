@@ -14,9 +14,6 @@ importers:
       '@babel/core':
         specifier: ^7.28.5
         version: 7.28.5
-      '@babel/plugin-transform-modules-commonjs':
-        specifier: ^7.27.1
-        version: 7.27.1(@babel/core@7.28.5)
       '@babel/preset-env':
         specifier: ^7.28.5
         version: 7.28.5(@babel/core@7.28.5)
@@ -71,8 +68,6 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.10.0)(tsx@4.20.6)(yaml@2.8.1)
-
-  examples/team-dashboard: {}
 
   packages/cli:
     dependencies:

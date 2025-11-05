@@ -1,7 +1,11 @@
 /**
  * Metrics context writer for Amp integration
  *
- * @module @effect-migrate/cli/amp
+ * Generates metrics.json with migration progress tracking and per-rule breakdown.
+ * Complements audit.json with time-series metrics for tracking migration velocity.
+ *
+ * @module @effect-migrate/cli/amp/metrics-writer
+ * @since 0.2.0
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
@@ -14,7 +18,12 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 /**
- * Metrics summary schema
+ * Metrics summary schema.
+ *
+ * Aggregated statistics about migration progress and violation counts.
+ *
+ * @category Schema
+ * @since 0.2.0
  */
 export const MetricsSummary = Schema.Struct({
   /** Total violations across all rules */
@@ -30,7 +39,12 @@ export const MetricsSummary = Schema.Struct({
 })
 
 /**
- * Per-rule metrics
+ * Per-rule metrics schema.
+ *
+ * Breakdown of violations by individual rule.
+ *
+ * @category Schema
+ * @since 0.2.0
  */
 export const RuleMetrics = Schema.Struct({
   /** Rule ID */
@@ -44,7 +58,12 @@ export const RuleMetrics = Schema.Struct({
 })
 
 /**
- * Complete metrics context
+ * Complete metrics context schema.
+ *
+ * Full metrics output including summary, per-rule breakdown, and optional goals.
+ *
+ * @category Schema
+ * @since 0.2.0
  */
 export const AmpMetricsContext = Schema.Struct({
   /** Context version */
@@ -66,10 +85,37 @@ export const AmpMetricsContext = Schema.Struct({
   }))
 })
 
+/**
+ * Extracted TypeScript type from AmpMetricsContext schema.
+ *
+ * @category Types
+ * @since 0.2.0
+ */
 export type AmpMetricsContext = typeof AmpMetricsContext.Type
 
 /**
- * Write metrics context to the Amp output directory
+ * Write metrics context to the Amp output directory.
+ *
+ * Generates metrics.json with migration progress tracking and per-rule breakdown.
+ * Also updates index.json to include metrics file reference.
+ *
+ * @param outputDir - Directory to write metrics.json
+ * @param results - Rule violation results from audit
+ * @param config - Migration configuration
+ * @returns Effect that writes metrics files
+ *
+ * @category Effect
+ * @since 0.2.0
+ *
+ * @example
+ * ```typescript
+ * const program = Effect.gen(function* () {
+ *   const results = yield* runAudit()
+ *   const config = yield* loadConfig()
+ *
+ *   yield* writeMetricsContext(".amp/effect-migrate", results, config)
+ * })
+ * ```
  */
 export const writeMetricsContext = (
   outputDir: string,

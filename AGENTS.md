@@ -1,6 +1,6 @@
 # AGENTS.md - effect-migrate Monorepo
 
-**Last Updated:** 2025-11-03\
+**Last Updated:** 2025-11-05\
 **For:** AI Coding Agents (Amp, Cursor, etc.)
 
 This file provides comprehensive guidance for working on the effect-migrate project, a TypeScript monorepo using Effect-TS for building migration tooling.
@@ -193,42 +193,76 @@ const program = Effect.scoped(
 
 ### 4. Services and Layers
 
+**IMPORTANT:** Services define behavior contracts (interfaces), NOT data contracts (Schema). Use plain TypeScript interfaces for services, and export them from their definition files.
+
 ```typescript
 import { Context, Effect, Layer } from "effect"
+import type { PlatformError } from "@effect/platform/Error"
 
-// Define service with Context.Tag
-class FileDiscovery extends Context.Tag("FileDiscovery")<
+// ✅ GOOD - Define service interface separately and export it
+export interface FileDiscoveryService {
+  readonly listFiles: (
+    globs: ReadonlyArray<string>,
+    exclude?: ReadonlyArray<string>
+  ) => Effect.Effect<string[], PlatformError>
+  readonly readFile: (path: string) => Effect.Effect<string, PlatformError>
+  readonly isTextFile: (path: string) => boolean
+}
+
+// ✅ GOOD - Create tag with exported interface
+export class FileDiscovery extends Context.Tag("FileDiscovery")<
   FileDiscovery,
-  {
-    readonly listFiles: (pattern: string) => Effect.Effect<string[]>
-    readonly readFile: (path: string) => Effect.Effect<string>
-  }
+  FileDiscoveryService
 >() {}
 
-// Create Live implementation as Layer
-const FileDiscoveryLive = Layer.effect(
+// ✅ GOOD - Create Live implementation as Layer
+export const FileDiscoveryLive = Layer.effect(
   FileDiscovery,
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
 
     return {
-      listFiles: (pattern) =>
-        fs.readDirectory(".").pipe(Effect.map((files) => files.filter((f) => f.includes(pattern)))),
-      readFile: (path) => fs.readFileString(path)
+      listFiles: (globs, exclude) =>
+        Effect.gen(function* () {
+          // Implementation
+        }),
+      readFile: (path) => fs.readFileString(path),
+      isTextFile: (path) => TEXT_EXTENSIONS.has(path.extname(path))
     }
   })
 )
 
-// Use service in program
-const program = Effect.gen(function* () {
-  const discovery = yield* FileDiscovery
-  const files = yield* discovery.listFiles("*.ts")
-  return files
-})
+// ✅ GOOD - Import service type in consumers
+import type { FileDiscoveryService } from "../services/FileDiscovery.js"
 
-// Provide layer
-program.pipe(Effect.provide(FileDiscoveryLive), Effect.provide(NodeFileSystem.layer))
+export const runPatternRules = (
+  rules: ReadonlyArray<Rule>,
+  config: Config,
+  discovery: FileDiscoveryService // Use imported type
+): Effect.Effect<ReadonlyArray<RuleResult>, PlatformError> =>
+  Effect.gen(function* () {
+    const files = yield* discovery.listFiles(globs, exclude)
+    // ...
+  })
+
+// ❌ BAD - Don't redefine service interface in consumers
+type FileDiscoveryService = Context.Tag.Service<FileDiscovery> // NEVER do this
+
+// ❌ BAD - Don't use Schema for service interfaces
+const FileDiscoveryService = Schema.Struct({
+  // WRONG! Schema is for data, not services
+  listFiles: Schema.Function(/* ... */),
+  readFile: Schema.Function(/* ... */)
+})
 ```
+
+**Key Points:**
+
+- **Export service interface** from the service file (e.g., `FileDiscoveryService`)
+- **Export the tag** as a class extending `Context.Tag(id)<Self, ServiceInterface>()`
+- **Import the service interface type** in consumers, don't redefine it
+- **Use Schema for data models**, not service definitions
+- Service methods return `Effect.Effect<A, E, R>` types
 
 ### 5. Schema Validation
 
@@ -679,6 +713,59 @@ const good = Effect.gen(function* () {
 })
 ```
 
+### ❌ Don't: Redefine Service Types in Consumers
+
+```typescript
+// ❌ BAD - Redefining service interface in consumer
+// packages/core/src/engines/PatternEngine.ts
+export interface FileDiscoveryService {
+  readonly listFiles: (globs: string[]) => Effect.Effect<string[]>
+  readonly readFile: (path: string) => Effect.Effect<string>
+}
+
+// ❌ BAD - Using Context.Tag.Service<> to extract type
+import { FileDiscovery } from "../services/FileDiscovery.js"
+type FileDiscoveryService = Context.Tag.Service<FileDiscovery>
+
+// ✅ GOOD - Import the service type from the service file
+import type { FileDiscoveryService } from "../services/FileDiscovery.js"
+
+export const runPatternRules = (
+  discovery: FileDiscoveryService // Type imported from source
+) => Effect.gen(/* ... */)
+```
+
+**Why:** Service interfaces should be defined once in the service file and exported. Consumers should import the type, not redefine it. This follows DRY principles and ensures type consistency.
+
+### ❌ Don't: Use Schema for Service Interfaces
+
+```typescript
+// ❌ BAD - Schema for service definition
+const FileDiscoveryService = Schema.Struct({
+  listFiles: Schema.Function(
+    Schema.Tuple(Schema.Array(Schema.String)),
+    Schema.Array(Schema.String)
+  ),
+  readFile: Schema.Function(Schema.Tuple(Schema.String), Schema.String)
+})
+
+// ✅ GOOD - Plain TypeScript interface for services
+export interface FileDiscoveryService {
+  readonly listFiles: (globs: string[]) => Effect.Effect<string[], PlatformError>
+  readonly readFile: (path: string) => Effect.Effect<string, PlatformError>
+}
+
+// ✅ GOOD - Use Schema for data models
+const User = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  email: Schema.String
+})
+type User = Schema.Schema.Type<typeof User>
+```
+
+**Why:** Schema is for data contracts (validation/transformation), not behavior contracts. Services define operations; Schema validates data flowing through those operations.
+
 ---
 
 ## TypeScript Configuration
@@ -932,6 +1019,6 @@ const result = yield * decode(data)
 
 ---
 
-**Last Updated:** 2025-11-03\
-**Maintainer:** Metis\
+**Last Updated:** 2025-11-05\
+**Maintainer:** Ari Dyckovsky\
 **License:** MIT

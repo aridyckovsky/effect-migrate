@@ -1,15 +1,66 @@
+/**
+ * Metrics Formatter - Migration progress dashboard with tables and progress bars
+ *
+ * This module calculates and formats migration metrics for terminal display,
+ * including rule breakdown tables, progress bars, and completion status.
+ * Uses cli-table3 for rich table formatting and chalk for colorization.
+ *
+ * @module @effect-migrate/cli/formatters/metrics
+ * @since 0.1.0
+ */
+
 import type { RuleResult } from "@effect-migrate/core"
 import chalk from "chalk"
 import Table from "cli-table3"
 
+/**
+ * Aggregated metrics data for migration progress tracking.
+ *
+ * Contains summary statistics and per-rule breakdown for migration violations.
+ *
+ * @category Schema
+ * @since 0.1.0
+ */
 export interface MetricsData {
+  /** Total count of all violations */
   totalIssues: number
+  /** Count of error-severity violations */
   errors: number
+  /** Count of warning-severity violations */
   warnings: number
+  /** Count of unique files with violations */
   filesWithIssues: number
+  /** Per-rule breakdown sorted by violation count descending */
   ruleBreakdown: Array<{ id: string; count: number; severity: string }>
 }
 
+/**
+ * Calculate migration metrics from audit results.
+ *
+ * Aggregates rule violations into summary statistics and per-rule breakdowns.
+ * Rule breakdown is sorted by violation count descending (most violations first).
+ *
+ * @param results - Array of rule violation results from audit
+ * @returns Aggregated metrics data
+ *
+ * @category Calculator
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * const metrics = calculateMetrics(results)
+ * // metrics = {
+ * //   totalIssues: 15,
+ * //   errors: 10,
+ * //   warnings: 5,
+ * //   filesWithIssues: 3,
+ * //   ruleBreakdown: [
+ * //     { id: "async-await-to-effect", count: 8, severity: "error" },
+ * //     { id: "promise-to-effect", count: 7, severity: "warning" }
+ * //   ]
+ * // }
+ * ```
+ */
 export const calculateMetrics = (results: RuleResult[]): MetricsData => {
   const totalIssues = results.length
   const errors = results.filter(r => r.severity === "error").length
@@ -40,6 +91,42 @@ export const calculateMetrics = (results: RuleResult[]): MetricsData => {
   }
 }
 
+/**
+ * Format metrics data as a rich terminal dashboard.
+ *
+ * Produces a colorized dashboard with:
+ * - Header banner with title
+ * - Summary metrics table (violations, errors, warnings, files affected)
+ * - Progress bar showing completion percentage
+ * - Rule breakdown table (top 10 rules by violation count)
+ * - Next steps recommendations
+ *
+ * Uses color coding: green (complete), yellow (in progress), red (pending).
+ *
+ * @param data - Aggregated metrics data from calculateMetrics
+ * @returns Formatted dashboard string ready for console display
+ *
+ * @category Formatter
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * const metrics = calculateMetrics(results)
+ * const dashboard = formatMetricsOutput(metrics)
+ * console.log(dashboard)
+ * // Displays:
+ * // ╔═══════════════════════════════════════════════════════════╗
+ * // ║          📊 MIGRATION METRICS DASHBOARD                   ║
+ * // ╚═══════════════════════════════════════════════════════════╝
+ * //
+ * // ┌────────────────────────────┬────────────┬────────────┬───────────────┐
+ * // │ Metric                     │ Current    │ Target     │ Status        │
+ * // ├────────────────────────────┼────────────┼────────────┼───────────────┤
+ * // │ Total Violations           │ 15         │ 0          │ ○ Pending     │
+ * // │ Error-level Issues         │ 10         │ 0          │ ○ Pending     │
+ * // ...
+ * ```
+ */
 export const formatMetricsOutput = (data: MetricsData): string => {
   const lines: string[] = []
 

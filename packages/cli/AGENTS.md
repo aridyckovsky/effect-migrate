@@ -45,14 +45,20 @@ packages/cli/
 │   │   ├── audit.ts       # Main audit command
 │   │   ├── metrics.ts     # Metrics reporting
 │   │   ├── docs.ts        # Docs guard checking
-│   │   └── init.ts        # Project initialization
+│   │   ├── init.ts        # Project initialization
+│   │   └── thread.ts      # Thread tracking command (add/list) ✅
 │   ├── formatters/        # Output formatters
 │   │   ├── console.ts     # Pretty console output
 │   │   └── json.ts        # JSON output
 │   ├── amp/               # Amp context generation
-│   │   └── context-writer.ts
+│   │   ├── context-writer.ts  # Amp context file writer ✅
+│   │   └── thread-manager.ts  # Thread tracking manager ✅
 │   └── index.ts           # CLI entry point
 └── test/                  # CLI integration tests
+    ├── amp/
+    │   └── thread-manager.test.ts  # Thread manager tests ✅
+    └── commands/
+        └── thread.test.ts          # Thread CLI tests ✅
 ```
 
 ---
@@ -183,6 +189,112 @@ export const initCommand = Command.make(
       return 0
     })
 )
+```
+
+### Thread Command with Subcommands
+
+The `thread` command tracks Amp thread URLs where migration work occurred.
+
+```typescript
+import { Command } from "@effect/cli"
+
+// ADD subcommand
+const threadAddCommand = Command.make(
+  "add",
+  {
+    url: Options.text("url").pipe(
+      Options.withDescription("Thread URL (https://ampcode.com/threads/T-{uuid})")
+    ),
+    tags: Options.text("tags").pipe(
+      Options.optional,
+      Options.withDescription("Comma-separated tags (e.g., migration,api)")
+    ),
+    scope: Options.text("scope").pipe(
+      Options.optional,
+      Options.withDescription("Comma-separated file globs/paths (e.g., src/api/*)")
+    ),
+    description: Options.text("description").pipe(
+      Options.optional,
+      Options.withDescription("Optional description of thread context")
+    ),
+    ampOut: ampOutOption()
+  },
+  ({ url, tags, scope, description, ampOut }) =>
+    Effect.gen(function* () {
+      const result = yield* addThread(ampOut, { url, tags, scope, description })
+
+      if (result.added) {
+        yield* Console.log(`✓ Added thread ${result.current.id}`)
+      } else if (result.merged) {
+        yield* Console.log(`✓ Updated thread ${result.current.id}: merged tags/scope`)
+      }
+
+      return 0
+    })
+)
+
+// LIST subcommand
+const threadListCommand = Command.make(
+  "list",
+  {
+    json: Options.boolean("json").pipe(
+      Options.withDefault(false),
+      Options.withDescription("Output as JSON")
+    ),
+    ampOut: ampOutOption()
+  },
+  ({ json, ampOut }) =>
+    Effect.gen(function* () {
+      const threadsFile = yield* readThreads(ampOut)
+
+      if (json) {
+        yield* Console.log(JSON.stringify(threadsFile, null, 2))
+      } else {
+        // Human-readable format
+        for (const thread of threadsFile.threads) {
+          yield* Console.log(`${thread.id}`)
+          yield* Console.log(`  URL: ${thread.url}`)
+          if (thread.tags) {
+            yield* Console.log(`  Tags: ${thread.tags.join(", ")}`)
+          }
+        }
+      }
+
+      return 0
+    })
+)
+
+// Main thread command with subcommands
+export const threadCommand = Command.make("thread", {}, () =>
+  Effect.gen(function* () {
+    yield* Console.log("Use 'thread add' or 'thread list'")
+    return 0
+  })
+).pipe(Command.withSubcommands([threadAddCommand, threadListCommand]))
+```
+
+**Key Features:**
+
+- **URL Validation**: Validates Amp thread URLs (case-insensitive, normalizes IDs to lowercase)
+- **Tag/Scope Merging**: Adding duplicate threads merges tags and scope using set union
+- **Timestamp Preservation**: Original `createdAt` timestamp preserved on merge
+- **Sorted Output**: Threads sorted by `createdAt` descending (newest first)
+- **Integration**: Thread references included in `audit.json` when present
+
+**Usage:**
+
+```bash
+# Add thread with tags
+effect-migrate thread add \
+  --url https://ampcode.com/threads/T-abc123... \
+  --tags "migration,api" \
+  --scope "src/api/*"
+
+# List tracked threads
+effect-migrate thread list
+
+# List as JSON
+effect-migrate thread list --json
 ```
 
 ---

@@ -1,0 +1,178 @@
+# Package-specific labels
+- name: "pkg:core"
+  color: "0e8a16"
+  description: "Issues related to @effect-migrate/core package"
+
+- name: "pkg:cli"
+  color: "0e8a16"
+  description: "Issues related to @effect-migrate/cli package"
+
+- name: "pkg:preset"
+  color: "0e8a16"
+  description: "Issues related to preset packages"
+
+# Type labels
+- name: "type:bug"
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: "type:feature"
+  color: "a2eeef"
+  description: "New feature or request"
+
+- name: "type:docs"
+  color: "0075ca"
+  description: "Documentation improvements"
+
+- name: "type:refactor"
+  color: "fbca04"
+  description: "Code refactoring"
+
+- name: "type:test"
+  color: "bfd4f2"
+  description: "Testing improvements"
+
+- name: "type:deps"
+  color: "0366d6"
+  description: "Dependency updates"
+
+# Effect-specific labels
+- name: "effect-ts"
+  color: "5319e7"
+  description: "Effect-TS patterns and usage"
+
+- name: "schema"
+  color: "5319e7"
+  description: "Schema validation and types"
+
+- name: "services"
+  color: "5319e7"
+  description: "Service layers and dependency injection"
+
+# Migration-specific labels
+- name: "migration"
+  color: "c5def5"
+  description: "Migration tooling and patterns"
+
+- name: "rules"
+  color: "c5def5"
+  description: "Migration rules and patterns"
+
+- name: "boundaries"
+  color: "c5def5"
+  description: "Architectural boundaries"
+
+# Priority labels
+- name: "priority:high"
+  color: "d93f0b"
+  description: "High priority"
+
+- name: "priority:medium"
+  color: "fbca04"
+  description: "Medium priority"
+
+- name: "priority:low"
+  color: "0e8a16"
+  description: "Low priority"
+
+# Community labels
+- name: "good-first-issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+
+- name: "low-hanging-fruit"
+  color: "a5d6a7"
+  description: "Easy wins and quick improvements"
+
+- name: "help-wanted"
+  color: "008672"
+  description: "Extra attention is needed"
+
+# Issue resolution labels
+- name: "duplicate"
+  color: "cfd3d7"
+  description: "This issue or pull request already exists"
+
+- name: "wontfix"
+  color: "e4e4e4"
+  description: "This will not be worked on"
+
+- name: "question"
+  color: "d876e3"
+  description: "Further information is requested"
+
+- name: "unrelated"
+  color: "999999"
+  description: "Not related to this project's scope"
+
+# Status labels
+- name: "status:blocked"
+  color: "e99695"
+  description: "Blocked by another issue or external dependency"
+
+- name: "status:wip"
+  color: "fbca04"
+  description: "Work in progress"
+
+- name: "status:needs-review"
+  color: "0052cc"
+  description: "Needs code review"
+
+# Amp integration labels
+- name: "amp:audit"
+  color: "ff6b6b"
+  description: "Audit context and structured violation output"
+
+- name: "amp:metrics"
+  color: "ff8787"
+  description: "Metrics context output for Amp"
+
+- name: "amp:docs"
+  color: "ffa5a5"
+  description: "Documentation guard and AGENTS.md tracking"
+
+- name: "amp:threads"
+  color: "ffb3b3"
+  description: "Thread URL tracking and threads.json management"
+
+- name: "amp:mcp"
+  color: "ffc1c1"
+  description: "MCP protocol compatibility and agent tooling"
+
+# Changeset labels
+- name: "changeset:next-minor"
+  color: "91ca55"
+  description: "Changes planned for next minor version"
+
+- name: "changeset:next-major"
+  color: "ca5a5a"
+  description: "Changes planned for next major version"
+
+# PR-related labels
+- name: "pr:breaking-change"
+  color: "d93f0b"
+  description: "Contains breaking changes"
+
+- name: "pr:ready"
+  color: "0e8a16"
+  description: "Ready to merge"
+
+- name: "pr:changes-requested"
+  color: "fbca04"
+  description: "Changes requested by reviewers"
+
+- name: "pr:do-not-merge"
+  color: "e11d21"
+  description: "Do not merge this PR"
+
+- name: "pr:size:small"
+  color: "c2e0c6"
+  description: "Small PR (< 100 lines)"
+
+- name: "pr:size:medium"
+  color: "fef2c0"
+  description: "Medium PR (100-500 lines)"
+
+- name: "pr:size:large"
+  color: "f9d0c4"
+  description: "Large PR (> 500 lines)"

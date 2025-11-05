@@ -1,9 +1,9 @@
 {
-  "name": "example-team-dashboard",
+  "name": "example-clean-effect",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Team dashboard API - halfway migrated to Effect patterns",
+  "description": "Example project showing clean Effect patterns",
   "scripts": {
     "audit": "effect-migrate audit",
     "audit:json": "effect-migrate audit --json"

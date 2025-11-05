@@ -1,5 +1,4 @@
 import { defineConfig } from "@effect-migrate/core"
-import { basicPreset } from "@effect-migrate/preset-basic"
 
 export default defineConfig({
   version: 1,
@@ -7,5 +6,46 @@ export default defineConfig({
     root: "./src",
     exclude: ["node_modules/**", "dist/**"]
   },
-  presets: [basicPreset]
+  patterns: [
+    {
+      id: "async-await-usage",
+      files: "**/*.ts",
+      pattern: "async\\s+function|async\\s*\\(",
+      message: "Consider migrating async/await to Effect.gen",
+      severity: "warning",
+      tags: ["async", "migration"]
+    },
+    {
+      id: "try-catch-usage",
+      files: "**/*.ts",
+      pattern: "try\\s*{",
+      message: "Consider using Effect error handling instead of try/catch",
+      severity: "warning",
+      tags: ["error-handling", "migration"]
+    },
+    {
+      id: "console-logging",
+      files: "**/*.ts",
+      pattern: "console\\.(log|error|warn|info)",
+      message: "Replace console.* with Console service from Effect",
+      severity: "warning",
+      tags: ["logging"]
+    },
+    {
+      id: "promise-all-usage",
+      files: "**/*.ts",
+      pattern: "Promise\\.all\\(",
+      message: "Replace Promise.all with Effect.forEach for concurrent operations",
+      severity: "warning",
+      tags: ["async", "concurrency"]
+    },
+    {
+      id: "new-promise-constructor",
+      files: "**/*.ts",
+      pattern: "new\\s+Promise\\s*<",
+      message: "Avoid new Promise constructor, use Effect combinators",
+      severity: "warning",
+      tags: ["async", "migration"]
+    }
+  ]
 })

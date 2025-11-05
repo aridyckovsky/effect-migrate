@@ -47,6 +47,7 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import { readThreads, type ThreadEntry, type ThreadsFile } from "./thread-manager.js"
 
 /**
  * Thread reference schema for tracking Amp threads where migration work occurred.
@@ -101,7 +102,11 @@ export const ThreadReference = Schema.Struct({
   /** Files modified in this thread */
   filesChanged: Schema.optional(Schema.Array(Schema.String)),
   /** Rule IDs resolved or addressed in this thread */
-  rulesResolved: Schema.optional(Schema.Array(Schema.String))
+  rulesResolved: Schema.optional(Schema.Array(Schema.String)),
+  /** Tags for categorizing threads */
+  tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Scope filter for grouping threads */
+  scope: Schema.optional(Schema.Array(Schema.String))
 })
 
 /**
@@ -141,7 +146,7 @@ export const ConfigSnapshot = Schema.Struct({
  * @since 0.1.0
  */
 export const FindingsGroup = Schema.Struct({
-  /** Findings grouped by file path (POSIX-style) */
+  /** Findings grouped by file path (relative to project root, POSIX-style) */
   byFile: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
   /** Findings grouped by rule ID */
   byRule: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
@@ -160,7 +165,7 @@ export const AmpAuditContext = Schema.Struct({
   version: Schema.Number,
   /** effect-migrate tool version */
   toolVersion: Schema.String,
-  /** Absolute path to project root */
+  /** Project root directory (relative, defaults to ".") */
   projectRoot: Schema.String,
   /** ISO timestamp when context was generated */
   timestamp: Schema.DateTimeUtc,
@@ -185,7 +190,7 @@ export const AmpContextIndex = Schema.Struct({
   schemaVersion: Schema.String,
   /** effect-migrate tool version */
   toolVersion: Schema.String,
-  /** Absolute path to project root */
+  /** Project root directory (relative, defaults to ".") */
   projectRoot: Schema.String,
   /** ISO timestamp when index was generated */
   timestamp: Schema.DateTimeUtc,
@@ -209,6 +214,116 @@ export const AmpContextIndex = Schema.Struct({
 export type AmpAuditContext = typeof AmpAuditContext.Type
 export type AmpContextIndex = typeof AmpContextIndex.Type
 export type ThreadReference = typeof ThreadReference.Type
+
+/**
+ * Transform ThreadEntry to ThreadReference format.
+ *
+ * Transforms ThreadEntry (from threads.json) to ThreadReference (for audit.json):
+ * - Renames createdAt to timestamp
+ * - Preserves optional fields (description, tags, scope)
+ * - Handles empty arrays by omitting them
+ *
+ * **Type Safety:** This function is type-safe without Schema transformation because:
+ * 1. Both ThreadEntry and ThreadReference are defined with Schema (compile-time validated)
+ * 2. The mapping preserves readonly semantics with proper conditional spreading
+ * 3. exactOptionalPropertyTypes is satisfied by conditional spreading (no undefined assignment)
+ * 4. The returned type is inferred and validated against ThreadReference schema
+ *
+ * **Why No Schema.transform:**
+ * Schema.transformOrFail would be redundant here since we're mapping between two
+ * already-validated schema types. The function signature provides type safety at
+ * compile time, and the ThreadReference schema validates at encode time in writeAmpContext.
+ *
+ * @param entry - Thread entry from threads.json
+ * @returns ThreadReference object for audit.json
+ *
+ * @category Pure Function
+ * @since 0.2.0
+ */
+const threadEntryToReference = (entry: ThreadEntry): ThreadReference => ({
+  url: entry.url,
+  timestamp: entry.createdAt,
+  ...(entry.description && { description: entry.description }),
+  ...(entry.tags && entry.tags.length > 0 && { tags: entry.tags }),
+  ...(entry.scope && entry.scope.length > 0 && { scope: entry.scope })
+})
+
+/**
+ * Transform ThreadsFile to ReadonlyArray<ThreadReference>.
+ *
+ * Maps thread entries from threads.json format to audit.json format using
+ * type-safe transformation. This is a pure function with no side effects.
+ *
+ * @param threadsFile - ThreadsFile from thread-manager
+ * @returns ReadonlyArray of ThreadReference objects
+ *
+ * @category Pure Function
+ * @since 0.2.0
+ *
+ * @example
+ * ```typescript
+ * const threadsFile = { version: 1, threads: [...] }
+ * const auditThreads = toAuditThreads(threadsFile)
+ * ```
+ */
+export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadReference> => {
+  return threadsFile.threads.map(threadEntryToReference)
+}
+
+/**
+ * Get the current tool version from package.json.
+ *
+ * @returns Effect containing the version string
+ * @category Effect
+ * @since 0.2.0
+ */
+const getToolVersion = Effect.gen(function*() {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+
+  // Resolve path to package.json relative to this file
+  // In production: build/esm/amp/context-writer.js -> ../../../package.json
+  // In dev: src/amp/context-writer.ts -> ../../package.json
+  const packageJsonPath = path.join(
+    path.dirname(new URL(import.meta.url).pathname),
+    "..",
+    "..",
+    "..",
+    "package.json"
+  )
+
+  const content = yield* fs.readFileString(packageJsonPath)
+  const packageJson = JSON.parse(content)
+  return packageJson.version as string
+})
+
+/**
+ * Load or create audit context with versioning.
+ *
+ * Attempts to load existing audit.json to preserve version history,
+ * incrementing version on each update. Falls back to version 1 for new audits.
+ *
+ * @param outputDir - Directory where audit.json is stored
+ * @returns Effect containing the next version number
+ * @category Effect
+ * @since 0.2.0
+ */
+const getNextAuditVersion = (outputDir: string) =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+
+    const auditPath = path.join(outputDir, "audit.json")
+
+    // Try to read existing audit to get current version
+    const existingAudit = yield* fs.readFileString(auditPath).pipe(
+      Effect.map(content => JSON.parse(content)),
+      Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)),
+      Effect.catchAll(() => Effect.succeed(null))
+    )
+
+    return existingAudit ? existingAudit.version + 1 : 1
+  })
 
 /**
  * Write Amp context files to the specified output directory.
@@ -248,16 +363,23 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     const now = yield* Clock.currentTimeMillis
     const timestamp = DateTime.unsafeMake(now)
-    const projectRoot = process.cwd()
+    const cwd = process.cwd()
+
+    // Get dynamic tool version from package.json
+    const toolVersion = yield* getToolVersion
+
+    // Get next audit version (increments on each run)
+    const auditVersion = yield* getNextAuditVersion(outputDir)
 
     // Group findings by file and rule
     const byFile: Record<string, RuleResult[]> = {}
     const byRule: Record<string, RuleResult[]> = {}
 
     for (const result of results) {
-      // Group by file (normalize to POSIX paths)
+      // Group by file (convert to relative paths and normalize to POSIX)
       if (result.file) {
-        const normalizedFile = result.file.split(path.sep).join("/")
+        const relativePath = path.relative(cwd, result.file)
+        const normalizedFile = relativePath.split(path.sep).join("/")
         if (!byFile[normalizedFile]) {
           byFile[normalizedFile] = []
         }
@@ -274,11 +396,19 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const errors = results.filter(r => r.severity === "error").length
     const warnings = results.filter(r => r.severity === "warning").length
 
-    // Create audit context (validated by schema)
+    // Read and attach threads if they exist
+    const threadsFile = yield* readThreads(outputDir).pipe(
+      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+    )
+
+    // Transform threads using type-safe mapping (validated by ThreadReference schema at encode time)
+    const auditThreads = toAuditThreads(threadsFile)
+
+    // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContext = {
-      version: 1,
-      toolVersion: "0.1.0",
-      projectRoot,
+      version: auditVersion,
+      toolVersion,
+      projectRoot: ".",
       timestamp,
       findings: {
         byFile,
@@ -293,8 +423,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       config: {
         rulesEnabled: Array.from(new Set(results.map(r => r.id))),
         failOn: [...(config.report?.failOn ?? ["error"])]
-      }
-      // threads: [] // Future: Populated by `effect-migrate thread add`
+      },
+      ...(auditThreads.length > 0 && { threads: auditThreads })
     }
 
     // Encode audit context to JSON
@@ -309,8 +439,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const index: AmpContextIndex = {
       version: 1,
       schemaVersion: "1.0.0",
-      toolVersion: "0.1.0",
-      projectRoot,
+      toolVersion,
+      projectRoot: ".",
       timestamp,
       files: {
         audit: "audit.json",
@@ -366,7 +496,7 @@ Amp will automatically understand:
     yield* fs.writeFileString(badgesPath, badgesContent)
 
     // Log completion
-    yield* Console.log(`  ✓ audit.json`)
+    yield* Console.log(`  ✓ audit.json (v${auditVersion})`)
     yield* Console.log(`  ✓ index.json`)
     yield* Console.log(`  ✓ badges.md`)
   })

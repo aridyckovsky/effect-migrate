@@ -1,3 +1,15 @@
+/**
+ * Rule Runner Service - Orchestrate rule execution with context
+ *
+ * This module provides the main service for executing migration rules.
+ * It builds the RuleContext, manages dependencies (FileDiscovery, ImportIndex),
+ * and coordinates concurrent rule execution.
+ *
+ * @module @effect-migrate/core/services/RuleRunner
+ * @since 0.1.0
+ */
+
+import * as Path from "@effect/platform/Path"
 import * as Console from "effect/Console"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -8,6 +20,15 @@ import { PathsSchema } from "../schema/Config.js"
 import { FileDiscovery, FileDiscoveryLive } from "./FileDiscovery.js"
 import { ImportIndex, ImportIndexLive } from "./ImportIndex.js"
 
+/**
+ * Rule runner service interface.
+ *
+ * Orchestrates rule execution by building context and running rules with
+ * proper error handling and progress logging.
+ *
+ * @category Service
+ * @since 0.1.0
+ */
 export interface RuleRunnerService {
   /**
    * Run all rules against the project
@@ -15,13 +36,40 @@ export interface RuleRunnerService {
   runRules: (rules: Rule[], config: Config) => Effect.Effect<RuleResult[]>
 }
 
+/**
+ * Rule runner service tag for dependency injection.
+ *
+ * @category Service
+ * @since 0.1.0
+ */
 export class RuleRunner extends Context.Tag("RuleRunner")<RuleRunner, RuleRunnerService>() {}
 
+/**
+ * Live implementation of RuleRunner service.
+ *
+ * Builds RuleContext with lazy file/import access, executes rules sequentially
+ * (to avoid concurrent file conflicts), and normalizes result paths.
+ *
+ * @category Layer
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const runner = yield* RuleRunner
+ *   const results = yield* runner.runRules(rules, config)
+ *   return results
+ * }).pipe(Effect.provide(RuleRunnerLayer))
+ * ```
+ */
 export const RuleRunnerLive = Layer.effect(
   RuleRunner,
   Effect.gen(function*() {
     const fileDiscovery = yield* FileDiscovery
     const importIndexService = yield* ImportIndex
+    const pathSvc = yield* Path.Path
 
     const runRules = (rules: Rule[], config: Config): Effect.Effect<RuleResult[]> =>
       Effect.gen(function*() {
@@ -96,13 +144,43 @@ export const RuleRunnerLive = Layer.effect(
         const allResults = results.flat()
         yield* Console.log(`✓ Complete: ${allResults.length} total findings`)
 
-        return allResults
+        // Normalize file paths to be relative to cwd (project root)
+        const normalizedResults = allResults.map(result => {
+          if (result.file) {
+            const relativePath = pathSvc.relative(cwd, result.file)
+            return { ...result, file: relativePath }
+          }
+          return result
+        })
+
+        return normalizedResults
       })
 
     return { runRules }
   })
 )
 
+/**
+ * Complete RuleRunner layer with all dependencies.
+ *
+ * Provides RuleRunner with FileDiscovery and ImportIndex services.
+ * Use this layer instead of RuleRunnerLive when you don't need to
+ * customize the underlying services.
+ *
+ * @category Layer
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const runner = yield* RuleRunner
+ *   const results = yield* runner.runRules(rules, config)
+ *   return results
+ * }).pipe(Effect.provide(RuleRunnerLayer))
+ * ```
+ */
 export const RuleRunnerLayer = RuleRunnerLive.pipe(
   Layer.provide(ImportIndexLive),
   Layer.provide(FileDiscoveryLive)
