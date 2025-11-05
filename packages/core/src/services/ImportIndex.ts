@@ -1,3 +1,14 @@
+/**
+ * Import Index Service - Build and query import graphs for boundary rules
+ *
+ * This module provides a service for analyzing project imports to enforce
+ * architectural boundaries. Parses import/export/require statements and
+ * builds forward/reverse dependency maps.
+ *
+ * @module @effect-migrate/core/services/ImportIndex
+ * @since 0.1.0
+ */
+
 import type { PlatformError } from "@effect/platform/Error"
 import { FileSystem } from "@effect/platform/FileSystem"
 import { Path } from "@effect/platform/Path"
@@ -8,35 +19,102 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { FileDiscovery } from "./FileDiscovery.js"
 
+/**
+ * Error thrown when import parsing fails.
+ *
+ * @category Error
+ * @since 0.1.0
+ */
 export class ImportParseError extends Data.TaggedError("ImportParseError")<{
   readonly file: string
   readonly message: string
 }> {}
 
+/**
+ * Regex patterns for matching import/export/require statements.
+ *
+ * @category Constant
+ * @since 0.1.0
+ */
 const IMPORT_PATTERNS = [
   /import\s+(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]/g,
   /export\s+(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]/g,
   /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 ]
 
+/**
+ * Supported file extensions for import resolution.
+ *
+ * @category Constant
+ * @since 0.1.0
+ */
 const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+
+/**
+ * Index file names for directory import resolution.
+ *
+ * @category Constant
+ * @since 0.1.0
+ */
 const INDEX_FILES = ["/index.ts", "/index.tsx", "/index.js", "/index.jsx"]
 
+/**
+ * Import index service interface.
+ *
+ * Provides methods for building import graphs and querying dependencies.
+ * Used by boundary rules to detect violations of architectural constraints.
+ *
+ * @category Service
+ * @since 0.1.0
+ */
+export interface ImportIndexService {
+  readonly getImportIndex: (
+    globs: ReadonlyArray<string>,
+    exclude?: ReadonlyArray<string>,
+    concurrency?: number
+  ) => Effect.Effect<Map<string, ReadonlyArray<string>>, PlatformError | ImportParseError>
+  readonly getImportsOf: (file: string) => Effect.Effect<ReadonlyArray<string>, ImportParseError>
+  readonly getDependentsOf: (
+    file: string
+  ) => Effect.Effect<ReadonlyArray<string>, ImportParseError>
+}
+
+/**
+ * Import index service tag for dependency injection.
+ *
+ * @category Service
+ * @since 0.1.0
+ */
 export class ImportIndex extends Context.Tag("ImportIndex")<
   ImportIndex,
-  {
-    readonly getImportIndex: (
-      globs: ReadonlyArray<string>,
-      exclude?: ReadonlyArray<string>,
-      concurrency?: number
-    ) => Effect.Effect<Map<string, ReadonlyArray<string>>, PlatformError | ImportParseError>
-    readonly getImportsOf: (file: string) => Effect.Effect<ReadonlyArray<string>, ImportParseError>
-    readonly getDependentsOf: (
-      file: string
-    ) => Effect.Effect<ReadonlyArray<string>, ImportParseError>
-  }
+  ImportIndexService
 >() {}
 
+/**
+ * Live implementation of ImportIndex service.
+ *
+ * Builds import graphs by parsing source files and caches results per
+ * glob pattern set. Resolves relative imports to absolute paths and
+ * prefixes npm packages with "pkg:".
+ *
+ * @category Layer
+ * @since 0.1.0
+ *
+ * @example
+ * ```typescript
+ * import { ImportIndex, ImportIndexLive } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const indexService = yield* ImportIndex
+ *   const index = yield* indexService.getImportIndex(
+ *     ["src/**\/*.ts"],
+ *     ["node_modules/**"]
+ *   )
+ *   const imports = yield* index.getImports("src/index.ts")
+ *   return imports
+ * }).pipe(Effect.provide(ImportIndexLive))
+ * ```
+ */
 export const ImportIndexLive = Layer.effect(
   ImportIndex,
   Effect.gen(function*() {
