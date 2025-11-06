@@ -242,33 +242,43 @@ Warnings: 1
 ### 3. Generate Amp Context
 
 ```bash
+# Write to custom directory
 pnpm effect-migrate audit --amp-out .amp/effect-migrate
+
+# Or write to default .amp/ directory
+pnpm effect-migrate audit --amp-out
 ```
 
-This creates `.amp/effect-migrate/context.json`:
+This creates structured context files with schema versioning:
 
+**`.amp/effect-migrate/index.json`** (entry point):
 ```json
 {
-  "version": 1,
+  "schemaVersion": "0.1.0",
   "timestamp": "2025-01-03T10:00:00Z",
-  "projectPath": "/Users/you/project",
-  "migrationState": {
-    "phase": "pattern-detection",
-    "completedModules": ["src/models/user.ts"],
-    "pendingModules": ["src/api/fetchUser.ts"]
-  },
-  "findings": {
-    "summary": {
-      "errors": 1,
-      "warnings": 3,
-      "totalFiles": 24,
-      "migratedFiles": 16,
-      "progress": 67
+  "resources": {
+    "audit": "./audit.json",
+    "metrics": "./metrics.json",
+    "threads": "./threads.json",
+    "badges": "./badges.md"
+  }
+}
+```
+
+**`.amp/effect-migrate/audit.json`** (detailed findings):
+```json
+{
+  "schemaVersion": "0.1.0",
+  "revision": 1,
+  "timestamp": "2025-01-03T10:00:00Z",
+  "findings": [
+    {
+      "ruleId": "no-async-await",
+      "severity": "warning",
+      "file": "src/api/fetchUser.ts",
+      "line": 23,
+      "message": "Replace async/await with Effect.gen"
     }
-  },
-  "recommendations": [
-    "Convert async/await functions to Effect.gen",
-    "Replace node:fs imports with @effect/platform/FileSystem"
   ]
 }
 ```
@@ -359,11 +369,12 @@ I'm migrating src/api/fetchUser.ts to Effect.
 
 Amp will:
 
-- Load audit.json and metrics.json via index.json
+- Load the index.json (schema version 0.1.0) which references all context files
+- Read audit.json (with revision tracking) and metrics.json
 - Know which files are migrated vs. legacy
 - Suggest Effect patterns based on active rules
-- Track progress and next steps
-- Cross-reference prior migration threads
+- Track progress across audit revisions
+- Cross-reference prior migration threads from threads.json
 
 ### 6. Programmatic Use (Amp TypeScript SDK)
 
@@ -373,8 +384,8 @@ import { execute } from "@sourcegraph/amp-sdk"
 async function proposeNextSteps(cwd: string) {
   const prompt = [
     "Load @.amp/effect-migrate/index.json",
-    "Read @.amp/effect-migrate/metrics.json and @.amp/effect-migrate/audit.json",
-    "Propose the 3 highest-impact modules to migrate next."
+    "The index references audit.json (with schemaVersion and revision), metrics.json, and threads.json",
+    "Propose the 3 highest-impact modules to migrate next based on the current revision."
   ].join("\n")
 
   for await (const msg of execute({ prompt, options: { cwd, continue: false } })) {
@@ -385,6 +396,11 @@ async function proposeNextSteps(cwd: string) {
   }
 }
 ```
+
+**Schema versioning benefits:**
+- All context files include `schemaVersion: "0.1.0"` for compatibility tracking
+- `audit.json` includes a `revision` number that increments on each run
+- Amp can detect schema changes and handle migrations gracefully
 
 See [Amp TypeScript SDK documentation](https://ampcode.com/docs/sdk) for more examples and options.
 
