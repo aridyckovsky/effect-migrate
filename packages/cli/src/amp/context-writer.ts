@@ -40,6 +40,7 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
+import { Semver } from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -161,8 +162,13 @@ export const FindingsGroup = Schema.Struct({
  * @since 0.1.0
  */
 export const AmpAuditContext = Schema.Struct({
-  /** Context format version */
-  version: Schema.Number,
+  /** Version of audit.json format */
+  schemaVersion: Semver,
+  /** Audit revision number (incremented on each write) */
+  revision: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(1)
+  ),
   /** effect-migrate tool version */
   toolVersion: Schema.String,
   /** Project root directory (relative, defaults to ".") */
@@ -184,10 +190,19 @@ export const AmpAuditContext = Schema.Struct({
  * @since 0.1.0
  */
 export const AmpContextIndex = Schema.Struct({
-  /** Index format version */
-  version: Schema.Number,
-  /** Schema version for compatibility tracking */
-  schemaVersion: Schema.String,
+  /** Version of index.json format itself */
+  schemaVersion: Semver,
+  /** Schema versions for generated artifacts */
+  versions: Schema.optional(
+    Schema.Struct({
+      /** audit.json format version */
+      audit: Semver,
+      /** metrics.json format version */
+      metrics: Schema.optional(Semver),
+      /** threads.json format version */
+      threads: Schema.optional(Semver)
+    })
+  ),
   /** effect-migrate tool version */
   toolVersion: Schema.String,
   /** Project root directory (relative, defaults to ".") */
@@ -213,9 +228,9 @@ export const AmpContextIndex = Schema.Struct({
  * @category Types
  * @since 0.1.0
  */
-export type AmpAuditContext = typeof AmpAuditContext.Type
-export type AmpContextIndex = typeof AmpContextIndex.Type
-export type ThreadReference = typeof ThreadReference.Type
+export type AmpAuditContext = Schema.Schema.Type<typeof AmpAuditContext>
+export type AmpContextIndex = Schema.Schema.Type<typeof AmpContextIndex>
+export type ThreadReference = Schema.Schema.Type<typeof ThreadReference>
 
 /**
  * Transform ThreadEntry to ThreadReference format.
@@ -369,7 +384,7 @@ const getNextAuditVersion = (outputDir: string) =>
       )
     )
 
-    return existingAudit ? existingAudit.version + 1 : 1
+    return existingAudit ? existingAudit.revision + 1 : 1
   })
 
 /**
@@ -457,7 +472,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContext = {
-      version: auditVersion,
+      schemaVersion,
+      revision: auditVersion,
       toolVersion,
       projectRoot: ".",
       timestamp,
@@ -488,8 +504,10 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Create index (validated by schema)
     const index: AmpContextIndex = {
-      version: 1,
       schemaVersion,
+      versions: {
+        audit: schemaVersion
+      },
       toolVersion,
       projectRoot: ".",
       timestamp,
