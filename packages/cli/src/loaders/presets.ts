@@ -16,6 +16,8 @@
  */
 
 import type { Preset, Rule } from "@effect-migrate/core"
+import * as FileSystem from "@effect/platform/FileSystem"
+import * as Path from "@effect/platform/Path"
 import * as Array from "effect/Array"
 import * as Console from "effect/Console"
 import * as Data from "effect/Data"
@@ -66,7 +68,7 @@ export interface LoadPresetsResult {
  */
 export const loadPresets = (
   names: ReadonlyArray<string>
-): Effect.Effect<LoadPresetsResult, PresetLoadError> =>
+): Effect.Effect<LoadPresetsResult, PresetLoadError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
     yield* Console.log(`Loading ${names.length} preset(s)...`)
 
@@ -87,10 +89,58 @@ export const loadPresets = (
   })
 
 /**
+ * Resolve workspace package path for monorepo development.
+ *
+ * Attempts to find the built package in the workspace for local testing.
+ * This enables preset loading during monorepo development.
+ *
+ * @param name - Package name (e.g., "@effect-migrate/preset-basic")
+ * @returns Effect with resolved file path or undefined if not found
+ *
+ * @category Loaders
+ * @since 0.3.0
+ */
+const resolveWorkspacePackage = (
+  name: string
+): Effect.Effect<string | undefined, never, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+
+    // Extract package name from scope (e.g., "@effect-migrate/preset-basic" -> "preset-basic")
+    const packageName = name.split("/").pop()
+    if (!packageName) return undefined
+
+    // Try to find in monorepo packages directory
+    const workspacePath = path.join(
+      process.cwd(),
+      "packages",
+      packageName,
+      "build",
+      "esm",
+      "index.js"
+    )
+
+    const exists = yield* fs.exists(workspacePath).pipe(
+      Effect.catchAll(() => Effect.succeed(false))
+    )
+
+    if (exists) {
+      // Convert to file:// URL for dynamic import
+      return `file://${workspacePath}`
+    }
+
+    return undefined
+  })
+
+/**
  * Load a single preset module.
  *
  * Attempts to dynamically import the preset package and validates its shape.
  * Handles both default exports and named 'preset' exports.
+ *
+ * For monorepo development, falls back to workspace package resolution if
+ * the standard npm import fails.
  *
  * @param name - Preset package name (e.g., "@effect-migrate/preset-basic")
  * @returns Effect containing the loaded preset
@@ -98,10 +148,12 @@ export const loadPresets = (
  * @category Loaders
  * @since 0.3.0
  */
-const loadPreset = (name: string): Effect.Effect<Preset, PresetLoadError> =>
+const loadPreset = (
+  name: string
+): Effect.Effect<Preset, PresetLoadError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
-    // Dynamically import preset module
-    const module = yield* Effect.tryPromise({
+    // Try standard npm import first
+    const loadFromNpm = Effect.tryPromise({
       try: () => import(name),
       catch: error =>
         new PresetLoadError({
@@ -110,10 +162,36 @@ const loadPreset = (name: string): Effect.Effect<Preset, PresetLoadError> =>
         })
     })
 
+    // Fallback: try workspace resolution for monorepo development
+    const loadFromWorkspace = Effect.gen(function*() {
+      const workspacePath = yield* resolveWorkspacePackage(name)
+
+      if (!workspacePath) {
+        return yield* Effect.fail(
+          new PresetLoadError({
+            preset: name,
+            message: "Package not found in npm or workspace"
+          })
+        )
+      }
+
+      return yield* Effect.tryPromise({
+        try: () => import(workspacePath),
+        catch: error =>
+          new PresetLoadError({
+            preset: name,
+            message: `Failed to import from workspace: ${String(error)}`
+          })
+      })
+    })
+
+    // Try npm first, fall back to workspace
+    const module = yield* loadFromNpm.pipe(Effect.orElse(() => loadFromWorkspace))
+
     // Handle default export or named preset export
-    // Precedence: module.default takes priority over module.preset
+    // Precedence: module.default > module.preset > module.presetBasic
     // This allows flexibility in export style while preferring the standard default export
-    const preset = module.default ?? module.preset
+    const preset = module.default ?? module.preset ?? module.presetBasic
 
     if (!isValidPreset(preset)) {
       return yield* Effect.fail(
