@@ -362,7 +362,11 @@ const getNextAuditVersion = (outputDir: string) =>
         })
       ),
       Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)),
-      Effect.catchAll(() => Effect.succeed(null))
+      Effect.catchAll(e =>
+        Console.error(`Failed to read existing audit context: ${String(e)}`).pipe(
+          Effect.map(() => null)
+        )
+      )
     )
 
     return existingAudit ? existingAudit.version + 1 : 1
@@ -441,7 +445,11 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Read and attach threads if they exist
     const threadsFile = yield* readThreads(outputDir).pipe(
-      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+      Effect.catchAll(e =>
+        Console.error(`Failed to read threads: ${String(e)}`).pipe(
+          Effect.map(() => ({ version: 1, threads: [] }))
+        )
+      )
     )
 
     // Transform threads using type-safe mapping (validated by ThreadReference schema at encode time)
@@ -543,4 +551,66 @@ Amp will automatically understand:
     yield* Console.log(`  ✓ audit.json (v${auditVersion})`)
     yield* Console.log(`  ✓ index.json`)
     yield* Console.log(`  ✓ badges.md`)
+  })
+
+/**
+ * Update index.json to include threads.json reference if threads exist.
+ *
+ * This is a lightweight operation that:
+ * 1. Reads the current index.json
+ * 2. Checks if threads.json has entries
+ * 3. Updates the files.threads field accordingly
+ *
+ * Used by the `thread add` command to ensure index.json stays in sync
+ * without requiring a full audit re-run.
+ *
+ * @param outputDir - Directory containing index.json and threads.json
+ * @returns Effect that updates the index file
+ *
+ * @category Effect
+ * @since 0.2.0
+ *
+ * @example
+ * ```typescript
+ * // After adding a thread
+ * yield* addThread(outputDir, { url, tags, scope })
+ * yield* updateIndexWithThreads(outputDir)
+ * ```
+ */
+export const updateIndexWithThreads = (
+  outputDir: string
+): Effect.Effect<void, Error, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+
+    const indexPath = path.join(outputDir, "index.json")
+
+    // Check if index.json exists
+    const indexExists = yield* fs.exists(indexPath)
+    if (!indexExists) {
+      // No index.json yet - will be created by audit/metrics
+      return
+    }
+
+    // Read current index.json
+    const indexContent = yield* fs.readFileString(indexPath)
+    const indexData = JSON.parse(indexContent)
+
+    // Read threads.json to check if it has entries
+    const threadsFile = yield* readThreads(outputDir)
+    const hasThreads = threadsFile.threads.length > 0
+
+    // Update files.threads field based on whether threads exist
+    // Keep all existing fields, just update the threads reference
+    const updatedIndex = {
+      ...indexData,
+      files: {
+        ...indexData.files,
+        ...(hasThreads ? { threads: "threads.json" } : {})
+      }
+    }
+
+    // Write updated index.json (no schema validation - preserve existing structure)
+    yield* fs.writeFileString(indexPath, JSON.stringify(updatedIndex, null, 2))
   })

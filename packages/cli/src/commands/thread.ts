@@ -39,6 +39,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { ampOutOption } from "../amp/constants.js"
+import { updateIndexWithThreads } from "../amp/context-writer.js"
 import { addThread, readThreads } from "../amp/thread-manager.js"
 
 /**
@@ -193,6 +194,9 @@ const threadAddCommand = Command.make(
       }
 
       const result = yield* addThread(ampOut, input)
+
+      // Update index.json to include threads reference
+      yield* updateIndexWithThreads(ampOut)
 
       // Log result
       if (result.added) {

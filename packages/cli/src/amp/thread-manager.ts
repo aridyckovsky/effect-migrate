@@ -242,7 +242,7 @@ export const validateThreadUrl = (url: string): Effect.Effect<{ id: string; url:
  * @example
  * ```typescript
  * const threads = yield* readThreads(".amp/effect-migrate")
- * console.log(`Found ${threads.threads.length} threads`)
+ * yield* Console.log(`Found ${threads.threads.length} threads`)
  * ```
  */
 export const readThreads = (
@@ -268,27 +268,30 @@ export const readThreads = (
       return { version: 1, threads: [] }
     }
 
-    // Parse with try/catch
+    // Parse JSON - log warning and return empty on failure
     const data = yield* Effect.try({
       try: () => JSON.parse(content),
-      catch: error => {
-        // Use Effect.logWarning for malformed JSON
-        Effect.logWarning(`Malformed threads.json: ${error}`).pipe(Effect.runSync)
-        return { version: 1, threads: [] }
-      }
-    })
+      catch: error => error
+    }).pipe(
+      Effect.tapError(error => Effect.logWarning(`Malformed threads.json: ${error}`)),
+      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+    )
 
-    // Decode with schema
+    // Early return if parsing failed
+    if (data.version === 1 && data.threads.length === 0 && !content.includes("\"version\"")) {
+      return data
+    }
+
+    // Decode with schema - log warning and return empty on failure
     const decode = Schema.decodeUnknownSync(ThreadsFile)
 
     return yield* Effect.try({
       try: () => decode(data),
-      catch: error => {
-        // Use Effect.logWarning instead of console.warn
-        Effect.logWarning(`Invalid threads.json schema: ${error}`).pipe(Effect.runSync)
-        return { version: 1, threads: [] }
-      }
-    })
+      catch: error => error
+    }).pipe(
+      Effect.tapError(error => Effect.logWarning(`Invalid threads.json schema: ${error}`)),
+      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+    )
   }).pipe(Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] })))
 
 /**
@@ -357,9 +360,9 @@ export const writeThreads = (
  * }, 2)  // Audit version 2
  *
  * if (result.added) {
- *   console.log("New thread added")
+ *   yield* Console.log("New thread added")
  * } else if (result.merged) {
- *   console.log("Existing thread updated")
+ *   yield* Console.log("Existing thread updated")
  * }
  * ```
  */
