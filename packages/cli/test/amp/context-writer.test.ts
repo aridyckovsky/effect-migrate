@@ -355,7 +355,11 @@ describe("context-writer", () => {
           toolVersion: "0.1.0",
           projectRoot: ".",
           timestamp: "2025-01-01T00:00:00.000Z",
-          findings: { byFile: {}, byRule: {}, summary: { errors: 0, warnings: 0, totalFiles: 0, totalFindings: 0 } },
+          findings: {
+            byFile: {},
+            byRule: {},
+            summary: { errors: 0, warnings: 0, totalFiles: 0, totalFindings: 0 }
+          },
           config: { rulesEnabled: [], failOn: ["error"] }
           // Note: no revision field
         }
