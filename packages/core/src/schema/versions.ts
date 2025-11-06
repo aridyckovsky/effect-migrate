@@ -1,49 +1,44 @@
 /**
- * Schema Version Registry - Single source of truth for all artifact versions.
+ * Schema Version Registry - Single source of truth for artifact schema version.
  *
  * ## Version Policy
  *
- * **Artifact schemas use semver (string):**
- * - MAJOR: Breaking changes to structure (consumers must update parsers)
- * - MINOR: Additive changes (new optional fields, backwards compatible)
- * - PATCH: Clarifications, typos, no structural changes
+ * **All artifacts share the same schema version:**
+ * - MAJOR: Breaking changes to any artifact structure
+ * - MINOR: Additive changes (new optional fields, new artifact types)
+ * - PATCH: Clarifications, bug fixes, no structural changes
  *
  * **Package versions (managed by changesets):**
- * - Independent of schema versions
+ * - Independent of schema version
  * - CLI/core can evolve without forcing schema changes
+ *
+ * **Rationale for single version:**
+ * - All artifacts (index.json, audit.json, metrics.json, threads.json) are generated together
+ * - They represent a unified context output for the same tool version
+ * - Separate versions would create confusion about compatibility
+ * - Simpler mental model: one tool version = one schema version
  *
  * @module @effect-migrate/core/schema/versions
  * @since 0.3.0
  */
 
 /**
- * Current schema versions for all artifacts.
+ * Current schema version for all effect-migrate artifacts.
  *
- * **IMPORTANT:** When updating versions here, also update:
- * - Related schema definitions
- * - Migration guides in docs/
- * - Tests will fail if types mismatch
+ * This version applies to:
+ * - index.json (navigation index)
+ * - audit.json (audit findings)
+ * - metrics.json (migration metrics)
+ * - threads.json (thread references)
+ *
+ * **IMPORTANT:** When updating this version:
+ * - Update all schema definitions if structures change
+ * - Add migration guide in docs/ for breaking changes
+ * - Tests will fail if schemas don't match
  */
-export const SCHEMA_VERSIONS = {
-  /** index.json format version */
-  index: "0.1.0",
-
-  /** audit.json format version */
-  audit: "0.1.0",
-
-  /** metrics.json format version */
-  metrics: "0.1.0",
-
-  /** threads.json format version */
-  threads: "0.1.0"
-} as const
+export const SCHEMA_VERSION = "0.1.0" as const
 
 /**
- * Type-safe schema version accessor.
+ * Type alias for schema version.
  */
-export type SchemaVersions = typeof SCHEMA_VERSIONS
-
-/**
- * Individual schema version type.
- */
-export type SchemaVersion = SchemaVersions[keyof SchemaVersions]
+export type SchemaVersion = typeof SCHEMA_VERSION

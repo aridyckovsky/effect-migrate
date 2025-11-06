@@ -5,7 +5,7 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
-import { AmpAuditContext, AmpContextIndex, SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
+import { AmpAuditContext, AmpContextIndex, SCHEMA_VERSION } from "@effect-migrate/core/schema"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
@@ -65,14 +65,9 @@ describe("context-writer", () => {
       expect(typeof index.schemaVersion).toBe("string")
       expect(index.schemaVersion).toMatch(/^\d+\.\d+\.\d+$/)
 
-      // Should match SCHEMA_VERSIONS.index from core
-      expect(index.schemaVersion).toBe(SCHEMA_VERSIONS.index)
+      // Should match SCHEMA_VERSION from core
+      expect(index.schemaVersion).toBe(SCHEMA_VERSION)
       expect(index.schemaVersion).toBe("0.1.0")
-
-      // Verify versions object with audit version
-      expect(index.versions).toBeDefined()
-      expect(index.versions?.audit).toBe(SCHEMA_VERSIONS.audit)
-      expect(index.versions?.audit).toBe("0.1.0")
 
       // Verify other required fields
       expect(index.toolVersion).toBeDefined()
@@ -159,7 +154,7 @@ describe("context-writer", () => {
       yield* writeAmpContext(outputDir, testResults, testConfig)
         .pipe(Effect.provideService(FileSystem.FileSystem, mockFs))
 
-      // Verify uses SCHEMA_VERSIONS.index from core (not from package.json)
+      // Verify uses SCHEMA_VERSION from core (not from package.json)
       const indexPath = path.join(outputDir, "index.json")
       const indexContent = yield* fs.readFileString(indexPath)
       const index = yield* Effect.try({
@@ -167,7 +162,7 @@ describe("context-writer", () => {
         catch: e => new Error(String(e))
       }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
 
-      expect(index.schemaVersion).toBe(SCHEMA_VERSIONS.index)
+      expect(index.schemaVersion).toBe(SCHEMA_VERSION)
       expect(index.schemaVersion).toBe("0.1.0")
       expect(index.toolVersion).toBe("9.9.9")
     }).pipe(Effect.provide(NodeContext.layer)))
@@ -225,7 +220,7 @@ describe("context-writer", () => {
     }).pipe(Effect.provide(NodeContext.layer)))
 
   describe("schema version and revision contract tests", () => {
-    it.scoped("audit.json should include schemaVersion field from SCHEMA_VERSIONS.audit", () =>
+    it.scoped("audit.json should include schemaVersion field from SCHEMA_VERSION", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
@@ -245,7 +240,7 @@ describe("context-writer", () => {
         }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
 
         // Verify schemaVersion matches the constant from core
-        expect(audit.schemaVersion).toBe(SCHEMA_VERSIONS.audit)
+        expect(audit.schemaVersion).toBe(SCHEMA_VERSION)
         expect(audit.schemaVersion).toBe("0.1.0")
       }).pipe(Effect.provide(NodeContext.layer)))
 
@@ -317,7 +312,7 @@ describe("context-writer", () => {
         expect(audit3.revision).toBe(3)
       }).pipe(Effect.provide(NodeContext.layer)))
 
-    it.scoped("index.json versions.audit should match SCHEMA_VERSIONS.audit", () =>
+    it.scoped("index.json schemaVersion should be consistent", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
@@ -336,9 +331,9 @@ describe("context-writer", () => {
           catch: e => new Error(String(e))
         }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
 
-        // Verify versions.audit matches the constant from core
-        expect(index.versions?.audit).toBe(SCHEMA_VERSIONS.audit)
-        expect(index.versions?.audit).toBe("0.1.0")
+        // Verify schemaVersion matches the constant from core
+        expect(index.schemaVersion).toBe(SCHEMA_VERSION)
+        expect(index.schemaVersion).toBe("0.1.0")
       }).pipe(Effect.provide(NodeContext.layer)))
 
     // TODO: make the test match the description; we do NOT want legacy compatibility

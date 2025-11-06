@@ -45,7 +45,7 @@ import {
   type AmpAuditContext as AmpAuditContextType,
   AmpContextIndex,
   type AmpContextIndex as AmpContextIndexType,
-  SCHEMA_VERSIONS,
+  SCHEMA_VERSION,
   type ThreadReference as ThreadReferenceType
 } from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
@@ -309,7 +309,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContextType = {
-      schemaVersion: SCHEMA_VERSIONS.audit,
+      schemaVersion: SCHEMA_VERSION,
       revision,
       toolVersion,
       projectRoot: ".",
@@ -341,10 +341,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Create index (validated by schema)
     const index: AmpContextIndexType = {
-      schemaVersion: SCHEMA_VERSIONS.index,
-      versions: {
-        audit: SCHEMA_VERSIONS.audit
-      },
+      schemaVersion: SCHEMA_VERSION,
       toolVersion,
       projectRoot: ".",
       timestamp,
@@ -456,14 +453,10 @@ export const updateIndexWithThreads = (
     const threadsFile = yield* readThreads(outputDir)
     const hasThreads = threadsFile.threads.length > 0
 
-    // Update files.threads and versions.threads fields based on whether threads exist
+    // Update files.threads field based on whether threads exist
     // Keep all existing fields, just update the threads reference
     const updatedIndex = {
       ...indexData,
-      versions: {
-        ...(indexData.versions ?? {}),
-        ...(hasThreads ? { threads: SCHEMA_VERSIONS.threads } : {})
-      },
       files: {
         ...indexData.files,
         ...(hasThreads ? { threads: "threads.json" } : {})

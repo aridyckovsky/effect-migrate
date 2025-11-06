@@ -1,24 +1,15 @@
-import { AmpAuditContext, AmpContextIndex, SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
+import { AmpAuditContext, AmpContextIndex, SCHEMA_VERSION } from "@effect-migrate/core/schema"
 import { describe, expect, it } from "@effect/vitest"
 import * as Schema from "effect/Schema"
 
 describe("Schema Version Registry", () => {
-  it("SCHEMA_VERSIONS is immutable", () => {
-    expect(Object.isFrozen(SCHEMA_VERSIONS)).toBe(false) // as const doesn't freeze at runtime
-    expect(SCHEMA_VERSIONS.index).toBe("0.1.0")
-    expect(SCHEMA_VERSIONS.audit).toBe("0.1.0")
-    expect(SCHEMA_VERSIONS.metrics).toBe("0.1.0")
-    expect(SCHEMA_VERSIONS.threads).toBe("0.1.0")
+  it("SCHEMA_VERSION is defined", () => {
+    expect(SCHEMA_VERSION).toBe("0.1.0")
   })
 
-  it("index schema accepts valid versions object", () => {
+  it("index schema accepts valid structure", () => {
     const validIndex = {
       schemaVersion: "0.1.0",
-      versions: {
-        audit: "0.1.0",
-        metrics: "0.1.0",
-        threads: "0.1.0"
-      },
       toolVersion: "0.3.0",
       projectRoot: ".",
       timestamp: new Date().toISOString(),
@@ -28,7 +19,7 @@ describe("Schema Version Registry", () => {
     }
 
     const result = Schema.decodeUnknownSync(AmpContextIndex)(validIndex)
-    expect(result.versions?.audit).toBe("0.1.0")
+    expect(result.schemaVersion).toBe("0.1.0")
   })
 
   it("audit schema accepts schemaVersion and revision", () => {

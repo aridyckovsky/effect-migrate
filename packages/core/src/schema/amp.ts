@@ -175,26 +175,15 @@ export const AmpAuditContext = Schema.Struct({
  * Index schema that points to other context files.
  *
  * The index.json file serves as an entry point to the Amp context directory,
- * providing pointers to all generated files (audit.json, metrics.json, etc.)
- * and their respective schema versions.
+ * providing pointers to all generated files (audit.json, metrics.json, etc.).
+ * All artifacts share the same schema version for simplicity.
  *
  * @category Schema
  * @since 0.1.0
  */
 export const AmpContextIndex = Schema.Struct({
-  /** Version of index.json format itself */
+  /** Schema version for all artifacts (single unified version) */
   schemaVersion: Semver,
-  /** Schema versions for generated artifacts */
-  versions: Schema.optional(
-    Schema.Struct({
-      /** audit.json format version */
-      audit: Semver,
-      /** metrics.json format version */
-      metrics: Schema.optional(Semver),
-      /** threads.json format version */
-      threads: Schema.optional(Semver)
-    })
-  ),
   /** effect-migrate tool version */
   toolVersion: Schema.String,
   /** Project root directory (relative, defaults to ".") */

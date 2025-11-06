@@ -220,21 +220,15 @@ export { ConfigLoadError } from "./schema/loader.js"
  *
  * @example
  * ```ts
- * import { SCHEMA_VERSIONS } from "@effect-migrate/core"
+ * import { SCHEMA_VERSION } from "@effect-migrate/core"
  *
- * console.log(SCHEMA_VERSIONS.audit) // "2.0.0"
- * console.log(SCHEMA_VERSIONS.index) // "1.1.0"
+ * console.log(SCHEMA_VERSION) // "0.1.0"
  * ```
  */
-export { SCHEMA_VERSIONS } from "./schema/index.js"
+export { SCHEMA_VERSION } from "./schema/index.js"
 
 /**
- * Type representing all schema versions.
- */
-export type { SchemaVersions } from "./schema/index.js"
-
-/**
- * Type for individual schema version values.
+ * Type for schema version value.
  */
 export type { SchemaVersion } from "./schema/index.js"
 
