@@ -4,7 +4,7 @@ import type { Config } from "@effect-migrate/core"
  * effect-migrate configuration
  *
  * This config demonstrates:
- * - Loading presets (commented out to avoid self-detection)
+ * - Loading presets (enabled for testing, may fail in monorepo due to workspace resolution)
  * - Custom pattern rules specific to this monorepo
  * - Boundary rules for package architecture
  *
@@ -12,12 +12,17 @@ import type { Config } from "@effect-migrate/core"
  * - Preset rules combine with your custom patterns/boundaries
  * - Preset defaults (like paths.exclude) are merged with your config
  * - Your config values always override preset defaults
+ * - Failed preset loading gracefully degrades (warns but continues with user rules)
+ *
+ * Note: In monorepo development, preset loading via dynamic import() may fail
+ * due to workspace resolution. This is expected and the CLI handles it gracefully.
+ * When published to npm, preset loading works correctly.
  */
 export default {
   version: 1,
 
-  // Preset loading example (uncomment to enable):
-  // presets: ["@effect-migrate/preset-basic"],
+  // Preset loading:
+  presets: ["@effect-migrate/preset-basic"],
   // The preset provides:
   // - Pattern rules: no-async-await, no-new-promise, no-try-catch, etc.
   // - Boundary rules: no-node-in-services, no-platform-node-in-core, etc.
@@ -25,13 +30,28 @@ export default {
 
   paths: {
     root: "packages",
-    include: ["**/*.ts"],
+    // Focus dogfooding on actual source code (not preset examples/fixtures)
+    include: [
+      "packages/**/src/**/*.ts",
+      "packages/**/bin/**/*.ts" // CLI entrypoints if needed
+    ],
     exclude: [
+      // Build artifacts and generated files
       "**/node_modules/**",
-      "**/dist/**",
-      "**/*.test.ts",
-      "**/examples/**",
-      "**/test/fixtures/**"
+      "**/{dist,build,lib,out,coverage}/**",
+      "**/*.d.ts",
+
+      // Tests and fixtures
+      "**/*.{test,spec}.ts",
+      "**/__tests__/**",
+      "**/{test,tests}/**",
+      "**/{__fixtures__,fixtures}/**",
+
+      // Examples (intentionally show anti-patterns)
+      "**/{examples,example}/**",
+
+      // Preset packages (intentionally contain anti-pattern examples in strings/comments)
+      "packages/preset-*/**"
     ]
   },
 
@@ -40,7 +60,7 @@ export default {
     {
       id: "no-async-await",
       pattern: "\\basync\\s+(function\\s+\\w+|(\\([^)]*\\)|[\\w]+)\\s*=>)",
-      files: "**/*.ts",
+      files: "packages/**/src/**/*.ts",
       message: "Replace async/await with Effect.gen - we should be using Effect patterns",
       severity: "error",
       docsUrl: "https://effect.website/docs/essentials/effect-type"
@@ -48,7 +68,7 @@ export default {
     {
       id: "no-barrel-imports",
       pattern: 'import\\s+{[^}]+}\\s+from\\s+["\']effect["\']',
-      files: "**/*.ts",
+      files: "packages/**/src/**/*.ts",
       message: "Import from specific modules (e.g., 'effect/Effect') to improve tree-shaking",
       severity: "warning",
       docsUrl: "https://effect.website/docs/guides/style/importing"
@@ -56,7 +76,7 @@ export default {
     {
       id: "no-promise-run",
       pattern: "Effect\\.runPromise",
-      files: "**/*.ts",
+      files: "packages/**/src/**/*.ts",
       message: "Avoid runPromise in library code - only use in CLI entry points",
       severity: "warning"
     }

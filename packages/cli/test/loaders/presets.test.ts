@@ -5,9 +5,13 @@
  */
 
 import type { Preset } from "@effect-migrate/core"
-import { expect, it } from "@effect/vitest"
+import * as NodeContext from "@effect/platform-node/NodeContext"
+import { expect, it, layer } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import { loadPresets, mergeDefaults, PresetLoadError } from "../../src/loaders/presets.js"
+
+const TestLayer = NodeContext.layer
 
 // Mock presets for testing
 const mockPresetWithDefaultExport: Preset = {
@@ -217,36 +221,43 @@ it.effect("should preserve non-object primitives", () =>
     expect((merged as any).name).toBe("preset-2") // Later wins
   }))
 
-it.effect("should load @effect-migrate/preset-basic", () =>
-  Effect.gen(function*() {
-    // Attempt to load real preset
-    const result = yield* loadPresets(["@effect-migrate/preset-basic"]).pipe(
-      Effect.catchTag("PresetLoadError", error => {
-        // If loading fails in test environment, validate error shape
-        expect(error.preset).toBe("@effect-migrate/preset-basic")
-        expect(error.message).toBeDefined()
-        return Effect.succeed({
-          rules: [],
-          defaults: {}
+layer(TestLayer)("Preset loading with services", it => {
+  it.effect("should load @effect-migrate/preset-basic", () =>
+    Effect.gen(function*() {
+      // Attempt to load real preset
+      const result = yield* loadPresets(["@effect-migrate/preset-basic"]).pipe(
+        Effect.catchTag("PresetLoadError", error => {
+          // If loading fails in test environment, validate error shape (type-safe)
+          expect(error.preset).toBe("@effect-migrate/preset-basic")
+          expect(error.message).toBeDefined()
+          return Effect.succeed({
+            rules: [],
+            defaults: {}
+          })
         })
-      })
-    )
+      )
 
-    // If successful, validate result shape
-    expect(Array.isArray(result.rules)).toBe(true)
-    expect(typeof result.defaults).toBe("object")
-  }))
+      // If successful, validate result shape
+      expect(Array.isArray(result.rules)).toBe(true)
+      expect(typeof result.defaults).toBe("object")
+    }))
 
-it.effect("should fail with PresetLoadError for missing module", () =>
-  Effect.gen(function*() {
-    const result = yield* loadPresets(["@non-existent/preset-missing"]).pipe(
-      Effect.flip // Convert failure to success for testing
-    )
+  it.effect("should fail with PresetLoadError for missing module", () =>
+    Effect.gen(function*() {
+      // Use Effect.flip to get type-safe error access (Effect-first pattern)
+      const error = yield* loadPresets(["@non-existent/preset-missing"]).pipe(
+        Effect.flip
+      )
 
-    expect(result._tag).toBe("PresetLoadError")
-    expect((result as any).preset).toBe("@non-existent/preset-missing")
-    expect((result as any).message).toContain("Failed to import")
-  }))
+      // Type-safe assertions on TaggedError properties
+      expect(error).toBeInstanceOf(PresetLoadError)
+      expect(error._tag).toBe("PresetLoadError")
+      expect(error.preset).toBe("@non-existent/preset-missing")
+      // Error message varies: "Failed to import" or "Package not found in npm or workspace"
+      expect(error.message).toBeDefined()
+      expect(error.message.length).toBeGreaterThan(0)
+    }))
+})
 
 it.effect("should merge rules from multiple presets", () =>
   Effect.gen(function*() {
