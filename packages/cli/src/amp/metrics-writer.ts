@@ -9,6 +9,7 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
+import { SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -189,6 +190,11 @@ export const writeMetricsContext = (
       const indexContent = yield* fs.readFileString(indexPath)
       const index = JSON.parse(indexContent)
       index.files.metrics = "metrics.json"
+      // Update versions.metrics to track schema version
+      if (!index.versions) {
+        index.versions = {}
+      }
+      index.versions.metrics = SCHEMA_VERSIONS.metrics
       yield* fs.writeFileString(indexPath, JSON.stringify(index, null, 2))
       yield* Console.log(`  ✓ Updated index.json`)
     }
