@@ -40,7 +40,7 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
-import { Semver } from "@effect-migrate/core/schema"
+import { SCHEMA_VERSIONS, Semver } from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -351,40 +351,44 @@ const getPackageMeta = Effect.gen(function*() {
 })
 
 /**
- * Load or create audit context with versioning.
+ * Get next audit revision number by incrementing existing revision.
  *
- * Attempts to load existing audit.json to preserve version history,
- * incrementing version on each update. Falls back to version 1 for new audits.
+ * Attempts to load existing audit.json to extract current revision,
+ * incrementing it by 1. Falls back to revision 1 for:
+ * - New audits (file doesn't exist)
+ * - Legacy audits (missing revision field)
+ * - Parse failures (invalid JSON or schema)
+ *
+ * Uses Effect combinators (no try/catch inside Effect.gen) for proper error handling.
  *
  * @param outputDir - Directory where audit.json is stored
- * @returns Effect containing the next version number
+ * @returns Effect containing the next revision number
  * @category Effect
  * @since 0.2.0
  */
-const getNextAuditVersion = (outputDir: string) =>
+const getNextAuditRevision = (outputDir: string) =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
 
     const auditPath = path.join(outputDir, "audit.json")
 
-    // Try to read existing audit to get current version
-    const existingAudit = yield* fs.readFileString(auditPath).pipe(
+    // Try to read existing audit to get current revision
+    const currentRevision = yield* fs.readFileString(auditPath).pipe(
       Effect.flatMap(content =>
         Effect.try({
           try: () => JSON.parse(content) as unknown,
           catch: e => new Error(`Invalid JSON in ${auditPath}: ${String(e)}`)
         })
       ),
-      Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)),
-      Effect.catchAll(e =>
-        Console.error(`Failed to read existing audit context: ${String(e)}`).pipe(
-          Effect.map(() => null)
-        )
-      )
+      Effect.map((data: any) => {
+        // Extract revision field, default to 0 for legacy files without revision
+        return typeof data.revision === "number" ? data.revision : 0
+      }),
+      Effect.catchAll(() => Effect.succeed(0))
     )
 
-    return existingAudit ? existingAudit.revision + 1 : 1
+    return currentRevision + 1
   })
 
 /**
@@ -428,10 +432,10 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const cwd = process.cwd()
 
     // Get dynamic metadata from package.json
-    const { toolVersion, schemaVersion } = yield* getPackageMeta
+    const { toolVersion } = yield* getPackageMeta
 
-    // Get next audit version (increments on each run)
-    const auditVersion = yield* getNextAuditVersion(outputDir)
+    // Get next audit revision (increments on each run)
+    const revision = yield* getNextAuditRevision(outputDir)
 
     // Group findings by file and rule
     const byFile: Record<string, RuleResult[]> = {}
@@ -472,8 +476,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContext = {
-      schemaVersion,
-      revision: auditVersion,
+      schemaVersion: SCHEMA_VERSIONS.audit,
+      revision,
       toolVersion,
       projectRoot: ".",
       timestamp,
@@ -504,9 +508,9 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
 
     // Create index (validated by schema)
     const index: AmpContextIndex = {
-      schemaVersion,
+      schemaVersion: SCHEMA_VERSIONS.index,
       versions: {
-        audit: schemaVersion
+        audit: SCHEMA_VERSIONS.audit
       },
       toolVersion,
       projectRoot: ".",
@@ -566,7 +570,7 @@ Amp will automatically understand:
     yield* fs.writeFileString(badgesPath, badgesContent)
 
     // Log completion
-    yield* Console.log(`  ✓ audit.json (v${auditVersion})`)
+    yield* Console.log(`  ✓ audit.json (revision ${revision})`)
     yield* Console.log(`  ✓ index.json`)
     yield* Console.log(`  ✓ badges.md`)
   })
