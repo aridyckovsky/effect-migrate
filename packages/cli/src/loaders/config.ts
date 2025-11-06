@@ -43,7 +43,7 @@ export const mergeConfig = (defaults: Record<string, unknown>, userConfig: Confi
 
   // Only apply defaults for fields not explicitly set by user
   for (const key in defaults) {
-    if (Object.prototype.hasOwnProperty.call(defaults, key)) {
+    if (Object.hasOwn(defaults, key)) {
       const defaultValue = defaults[key]
       const userValue = merged[key]
 
@@ -67,12 +67,25 @@ export const mergeConfig = (defaults: Record<string, unknown>, userConfig: Confi
 /**
  * Deep merge two objects, with source taking precedence.
  *
+ * Recursively merges nested objects. Arrays are replaced, not concatenated.
+ * Properties in 'source' override properties in 'target'.
+ *
  * @param target - Base object (lower priority)
  * @param source - Override object (higher priority)
  * @returns Merged object
  *
  * @category Utilities
  * @since 0.3.0
+ *
+ * @example
+ * ```typescript
+ * deepMerge(
+ *   { paths: { exclude: ["node_modules"] }, tags: ["a"] },
+ *   { paths: { root: "src" }, tags: ["b"] }
+ * )
+ * // => { paths: { exclude: ["node_modules"], root: "src" }, tags: ["b"] }
+ * // Note: tags array is replaced, not concatenated
+ * ```
  */
 function deepMerge(
   target: Record<string, unknown>,
@@ -81,7 +94,7 @@ function deepMerge(
   const result: Record<string, unknown> = { ...target }
 
   for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
+    if (Object.hasOwn(source, key)) {
       const sourceValue = source[key]
       const targetValue = result[key]
 
@@ -91,7 +104,7 @@ function deepMerge(
           sourceValue as Record<string, unknown>
         )
       } else {
-        // Source wins
+        // Source wins (including array replacement)
         result[key] = sourceValue
       }
     }

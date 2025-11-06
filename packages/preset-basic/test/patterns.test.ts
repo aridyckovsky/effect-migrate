@@ -719,7 +719,7 @@ class MyError extends Error {
 
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].id).toBe("prefer-tagged-error")
-    expect(results[0].severity).toBe("info")
+    expect(results[0].severity).toBe("warning")
     expect(results[0].message).toContain("Data.TaggedError")
   }))
 

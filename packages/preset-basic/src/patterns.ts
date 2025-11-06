@@ -385,7 +385,11 @@ export const noUnhandledEffect: Rule = {
             const beforeEffect = line.substring(0, match.index).trim()
 
             // Skip if preceded by yield*, return, or assignment operators
-            if (/yield\*\s*$|return\s*$|=\s*$|const\s+\w+\s*=$|let\s+\w+\s*=$|var\s+\w+\s*=$/.test(beforeEffect)) {
+            if (
+              /yield\*\s*$|return\s*$|=\s*$|const\s+\w+\s*=$|let\s+\w+\s*=$|var\s+\w+\s*=$/.test(
+                beforeEffect
+              )
+            ) {
               continue
             }
 
@@ -770,7 +774,7 @@ export const preferTaggedError: Rule = {
               ruleKind: "pattern",
               message:
                 "Consider using Data.TaggedError for better type inference and error handling.",
-              severity: "info",
+              severity: "warning",
               file,
               range: {
                 start: { line, column },

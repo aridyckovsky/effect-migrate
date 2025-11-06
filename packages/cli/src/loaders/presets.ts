@@ -111,6 +111,8 @@ const loadPreset = (name: string): Effect.Effect<Preset, PresetLoadError> =>
     })
 
     // Handle default export or named preset export
+    // Precedence: module.default takes priority over module.preset
+    // This allows flexibility in export style while preferring the standard default export
     const preset = module.default ?? module.preset
 
     if (!isValidPreset(preset)) {
