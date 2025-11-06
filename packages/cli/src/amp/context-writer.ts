@@ -338,7 +338,10 @@ const getPackageMeta = Effect.gen(function*() {
     packageJsonPath = path.join(dirname, "..", "..", "package.json")
   }
 
-  const content = yield* fs.readFileString(packageJsonPath)
+  const content = yield* fs.readFileString(packageJsonPath).pipe(
+    Effect.catchAll(() => Effect.fail(new Error("package.json not found")))
+  )
+
   const pkg = yield* Effect.try({
     try: () => JSON.parse(content) as unknown,
     catch: e => new Error(`Invalid JSON in ${packageJsonPath}: ${String(e)}`)
@@ -348,7 +351,9 @@ const getPackageMeta = Effect.gen(function*() {
     toolVersion: pkg.version,
     schemaVersion: pkg.effectMigrate?.schemaVersion ?? "1.0.0"
   }
-})
+}).pipe(
+  Effect.catchAll(() => Effect.succeed({ toolVersion: "unknown", schemaVersion: "1.0.0" }))
+)
 
 /**
  * Get next audit revision number by incrementing existing revision.
@@ -623,10 +628,14 @@ export const updateIndexWithThreads = (
     const threadsFile = yield* readThreads(outputDir)
     const hasThreads = threadsFile.threads.length > 0
 
-    // Update files.threads field based on whether threads exist
+    // Update files.threads and versions.threads fields based on whether threads exist
     // Keep all existing fields, just update the threads reference
     const updatedIndex = {
       ...indexData,
+      versions: {
+        ...(indexData.versions ?? {}),
+        ...(hasThreads ? { threads: SCHEMA_VERSIONS.threads } : {})
+      },
       files: {
         ...indexData.files,
         ...(hasThreads ? { threads: "threads.json" } : {})
