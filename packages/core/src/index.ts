@@ -208,6 +208,37 @@ export { defineConfig } from "./schema/loader.js"
 export { ConfigLoadError } from "./schema/loader.js"
 
 // ============================================================================
+// Schema Versioning
+// ============================================================================
+
+/**
+ * Registry of schema versions for all output artifacts.
+ *
+ * Provides single source of truth for versioning index.json, audit.json,
+ * metrics.json, and threads.json. Schema versions follow semver and are
+ * independent of package versions.
+ *
+ * @example
+ * ```ts
+ * import { SCHEMA_VERSIONS } from "@effect-migrate/core"
+ *
+ * console.log(SCHEMA_VERSIONS.audit) // "2.0.0"
+ * console.log(SCHEMA_VERSIONS.index) // "1.1.0"
+ * ```
+ */
+export { SCHEMA_VERSIONS } from "./schema/index.js"
+
+/**
+ * Type representing all schema versions.
+ */
+export type { SchemaVersions } from "./schema/index.js"
+
+/**
+ * Type for individual schema version values.
+ */
+export type { SchemaVersion } from "./schema/index.js"
+
+// ============================================================================
 // Services
 // ============================================================================
 
