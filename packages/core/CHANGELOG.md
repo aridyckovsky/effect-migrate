@@ -1,5 +1,32 @@
 # @effect-migrate/core
 
+## 0.3.0
+
+### Minor Changes
+
+- [#40](https://github.com/aridyckovsky/effect-migrate/pull/40) [`255240b`](https://github.com/aridyckovsky/effect-migrate/commit/255240b133c6975e34467fc4d0c2d19089d92306) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Add unified schema versioning and amp utilities to core package
+  - Add `SCHEMA_VERSION` constant - single version for all artifacts (simplicity over complexity)
+  - Add Semver schema validator with subpath export `@effect-migrate/core/schema`
+  - Move amp utilities (context-writer, metrics-writer, thread-manager) from CLI to core
+  - Add `schemaVersion` field to index.json and audit.json schemas
+  - Add `revision` counter field to audit.json (increments on each write)
+  - Export amp utilities via `@effect-migrate/core/amp` subpath
+  - All artifacts share same schema version for clearer versioning semantics
+
+### Patch Changes
+
+- [#31](https://github.com/aridyckovsky/effect-migrate/pull/31) [`eeb0290`](https://github.com/aridyckovsky/effect-migrate/commit/eeb02904f29c98a4b5ecf0f7b338932e3450773a) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Fix boundary rule glob pattern handling for module specifiers. Patterns like `react*internals` now correctly match `react/internals`.
+
+- [#31](https://github.com/aridyckovsky/effect-migrate/pull/31) [`eeb0290`](https://github.com/aridyckovsky/effect-migrate/commit/eeb02904f29c98a4b5ecf0f7b338932e3450773a) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Fix `defineConfig` to accept encoded input types. Users can now pass pattern strings directly instead of RegExp objects, avoiding TypeScript errors.
+
+- [#40](https://github.com/aridyckovsky/effect-migrate/pull/40) [`b8c540a`](https://github.com/aridyckovsky/effect-migrate/commit/b8c540a297030e4dc275301e1cbc09f5a19e90ea) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Upgrade `effect` packages and fix dependency versions
+  - Upgrade `effect` from 3.18.4 to 3.19.2
+  - Upgrade `@effect/platform` from 0.92.1 to 0.93.0
+  - Upgrade `@effect/platform-node` from 0.98.4 to 0.100.0
+  - Upgrade `@effect/cli` from 0.71.0 to 0.72.0
+  - Upgrade `@effect/vitest` from 0.26.0 to 0.27.0
+  - Replace "latest" with specific versions for `@types/node` (^24.10.0) and `typescript` (^5.9.3)
+
 ## 0.2.1
 
 ### Patch Changes
