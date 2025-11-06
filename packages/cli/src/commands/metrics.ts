@@ -34,6 +34,7 @@ import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
+import { ampOutOption } from "../amp/options.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
 
@@ -70,7 +71,7 @@ export const metricsCommand = Command.make(
       Options.withDefault("effect-migrate.config.ts")
     ),
     json: Options.boolean("json").pipe(Options.withDefault(false)),
-    ampOut: Options.text("amp-out").pipe(Options.optional)
+    ampOut: ampOutOption()
   },
   ({ config: configPath, json, ampOut }) =>
     Effect.gen(function*() {

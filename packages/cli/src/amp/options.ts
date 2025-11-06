@@ -11,8 +11,8 @@ import * as Options from "@effect/cli/Options"
 /**
  * CLI option for Amp output directory.
  *
- * Returns a text option with default value and description for use
- * in command definitions.
+ * Returns an optional text option with description for use in command definitions.
+ * When not provided, Amp context output is skipped.
  *
  * @returns CLI Options instance for --amp-out flag
  *
@@ -28,6 +28,6 @@ import * as Options from "@effect/cli/Options"
  */
 export const ampOutOption = () =>
   Options.text("amp-out").pipe(
-    Options.withDefault(AMP_OUT_DEFAULT),
-    Options.withDescription("Directory for Amp context output")
+    Options.optional,
+    Options.withDescription(`Directory for Amp context output (default: ${AMP_OUT_DEFAULT})`)
   )

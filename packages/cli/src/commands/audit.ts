@@ -34,6 +34,7 @@ import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
+import { ampOutOption } from "../amp/options.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
@@ -76,7 +77,7 @@ export const auditCommand = Command.make(
     ),
     json: Options.boolean("json").pipe(Options.withDefault(false)),
     strict: Options.boolean("strict").pipe(Options.withDefault(false)),
-    ampOut: Options.text("amp-out").pipe(Options.optional)
+    ampOut: ampOutOption()
   },
   ({ config: configPath, json, strict, ampOut }) =>
     Effect.gen(function*() {
