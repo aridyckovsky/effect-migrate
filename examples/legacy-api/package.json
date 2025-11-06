@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Example project showing legacy API patterns",
   "scripts": {
-    "audit": "effect-migrate audit",
-    "audit:json": "effect-migrate audit --json"
+    "effect-migrate:audit": "effect-migrate audit",
+    "effect-migrate:audit:json": "effect-migrate audit --json"
   },
   "dependencies": {
     "@effect-migrate/core": "workspace:*",

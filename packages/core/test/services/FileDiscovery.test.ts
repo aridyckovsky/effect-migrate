@@ -256,4 +256,113 @@ layer(TestLayer)("FileDiscovery", it => {
 
       expect(files.every(f => !f.includes("/services/"))).toBe(true)
     }))
+
+  it.effect("should exclude build artifacts (dist, build, coverage)", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      const fixturesDir = path.join(cwd, "test/fixtures/exclude-test")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${fixturesDir}/**/*.ts`],
+        ["**/{dist,build,lib,out,coverage}/**"]
+      )
+
+      expect(files.every(f => !f.includes("/dist/"))).toBe(true)
+      expect(files.every(f => !f.includes("/build/"))).toBe(true)
+      expect(files.every(f => !f.includes("/lib/"))).toBe(true)
+      expect(files.every(f => !f.includes("/out/"))).toBe(true)
+      expect(files.every(f => !f.includes("/coverage/"))).toBe(true)
+    }))
+
+  it.effect("should exclude .d.ts declaration files", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      const fixturesDir = path.join(cwd, "test/fixtures/exclude-test")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${fixturesDir}/**/*.ts`],
+        ["**/*.d.ts"]
+      )
+
+      expect(files.every(f => !f.endsWith(".d.ts"))).toBe(true)
+      // Should have at least some .ts files (not .d.ts)
+      if (files.length > 0) {
+        expect(files.some(f => f.endsWith(".ts"))).toBe(true)
+      }
+    }))
+
+  it.effect("should exclude test files and fixtures", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      const fixturesDir = path.join(cwd, "test/fixtures/exclude-test")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${fixturesDir}/**/*.ts`],
+        [
+          "**/*.{test,spec}.ts",
+          "**/__tests__/**",
+          "**/{test,tests}/**",
+          "**/{__fixtures__,fixtures}/**"
+        ]
+      )
+
+      expect(files.every(f => !f.includes(".test.ts"))).toBe(true)
+      expect(files.every(f => !f.includes(".spec.ts"))).toBe(true)
+      expect(files.every(f => !f.includes("/__tests__/"))).toBe(true)
+      expect(files.every(f => !f.includes("/test/"))).toBe(true)
+      expect(files.every(f => !f.includes("/tests/"))).toBe(true)
+      expect(files.every(f => !f.includes("/fixtures/"))).toBe(true)
+      expect(files.every(f => !f.includes("/__fixtures__/"))).toBe(true)
+    }))
+
+  it.effect("should exclude preset packages", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      // Navigate up to repo root from packages/core
+      const repoRoot = path.join(cwd, "../..")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${repoRoot}/packages/**/*.ts`],
+        [`${repoRoot}/packages/preset-*/**`]
+      )
+
+      expect(files.every(f => !f.includes("/preset-"))).toBe(true)
+    }))
+
+  it.effect("should handle complex dogfooding exclusions", () =>
+    Effect.gen(function*() {
+      const path = yield* Path.Path
+      const cwd = yield* Effect.sync(() => process.cwd())
+      // Navigate up to repo root from packages/core
+      const repoRoot = path.join(cwd, "../..")
+      const discovery = yield* FileDiscovery
+      const files = yield* discovery.listFiles(
+        [`${repoRoot}/packages/**/src/**/*.ts`, `${repoRoot}/packages/**/bin/**/*.ts`],
+        [
+          "**/node_modules/**",
+          "**/{dist,build,lib,out,coverage}/**",
+          "**/*.d.ts",
+          "**/*.{test,spec}.ts",
+          "**/__tests__/**",
+          "**/{test,tests}/**",
+          "**/{__fixtures__,fixtures}/**",
+          "**/{examples,example}/**",
+          `${repoRoot}/packages/preset-*/**`
+        ]
+      )
+
+      // Should only include source files from non-preset packages
+      expect(files.every(f => f.includes("/src/") || f.includes("/bin/"))).toBe(true)
+      expect(files.every(f => !f.includes("/preset-"))).toBe(true)
+      expect(files.every(f => !f.includes("/dist/"))).toBe(true)
+      expect(files.every(f => !f.includes("/build/"))).toBe(true)
+      expect(files.every(f => !f.endsWith(".d.ts"))).toBe(true)
+      expect(files.every(f => !f.includes(".test.ts"))).toBe(true)
+      expect(files.every(f => !f.includes("/fixtures/"))).toBe(true)
+      expect(files.every(f => !f.includes("/examples/"))).toBe(true)
+    }))
 })

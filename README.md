@@ -146,15 +146,18 @@ pnpm effect-migrate init
 This creates `effect-migrate.config.ts` with type-safe configuration:
 
 ```typescript
-import { defineConfig } from "@effect-migrate/core"
+import type { Config } from "@effect-migrate/core"
 
-export default defineConfig({
+export default {
   version: 1,
+  // Load default Effect migration rules
+  presets: ["@effect-migrate/preset-basic"],
   paths: {
     root: ".",
     include: ["src/**/*.ts", "src/**/*.tsx"],
     exclude: ["node_modules/**", "dist/**"]
   },
+  // Optional: add custom rules that extend the preset
   patterns: [
     {
       id: "no-async-await",
@@ -173,8 +176,40 @@ export default defineConfig({
       severity: "error"
     }
   ]
-})
+} satisfies Config
 ```
+
+### Configuration with Presets
+
+Presets provide ready-to-use rule collections. The `@effect-migrate/preset-basic` preset includes:
+
+- **Pattern rules**: Detect async/await, Promise constructors, try/catch, barrel imports
+- **Boundary rules**: Enforce @effect/platform usage, prevent Node.js built-in imports
+- **Default excludes**: Automatically excludes node_modules, dist, build artifacts
+
+**Preset behavior:**
+
+- Preset rules are combined with your custom `patterns` and `boundaries`
+- Preset config defaults (like `paths.exclude`) are merged with your config
+- **Your config always wins** — you can override any preset defaults
+- If a preset fails to load, the CLI logs a warning and continues with remaining presets
+
+**Example with multiple presets:**
+
+```typescript
+export default {
+  version: 1,
+  presets: [
+    "@effect-migrate/preset-basic",
+    "@myteam/effect-rules" // Custom team preset
+  ],
+  paths: {
+    exclude: ["vendor/**"] // Extends preset defaults
+  }
+} satisfies Config
+```
+
+See [@effect-migrate/preset-basic](./packages/preset-basic) for the complete list of included rules.
 
 ### 2. Run Migration Audit
 

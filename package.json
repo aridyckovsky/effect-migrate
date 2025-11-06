@@ -40,6 +40,7 @@
     "@effect/eslint-plugin": "^0.3.2",
     "@effect/language-service": "^0.54.0",
     "@effect/vitest": "^0.26.0",
+    "@effect-migrate/core": "workspace:*",
     "babel-plugin-annotate-pure-calls": "^0.4.0",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.1",

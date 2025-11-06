@@ -28,19 +28,14 @@
  * @since 0.1.0
  */
 
-import {
-  loadConfig,
-  makeBoundaryRule,
-  makePatternRule,
-  RuleRunner,
-  RuleRunnerLayer
-} from "@effect-migrate/core"
+import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import { writeMetricsContext } from "../amp/metrics-writer.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
+import { loadRulesAndConfig } from "../loaders/rules.js"
 
 /**
  * CLI command to display migration metrics dashboard.
@@ -79,51 +74,12 @@ export const metricsCommand = Command.make(
   },
   ({ config: configPath, json, ampOut }) =>
     Effect.gen(function*() {
-      const config = yield* loadConfig(configPath).pipe(
-        Effect.catchAll(error =>
-          Effect.gen(function*() {
-            yield* Console.error(`Failed to load config: ${error}`)
-            return yield* Effect.fail(error)
-          })
-        )
-      )
+      // Load configuration, presets, and construct all rules
+      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath)
 
+      // Run rules via RuleRunner service
       const runner = yield* RuleRunner
-      const rules: any[] = []
-
-      // Pattern rules - convert config patterns to actual rules
-      if (config.patterns) {
-        for (const pattern of config.patterns) {
-          rules.push(makePatternRule({
-            id: pattern.id,
-            files: Array.isArray(pattern.files) ? pattern.files : [pattern.files],
-            pattern: pattern.pattern,
-            message: pattern.message,
-            severity: pattern.severity,
-            ...(pattern.negativePattern !== undefined &&
-              { negativePattern: pattern.negativePattern }),
-            ...(pattern.docsUrl !== undefined && { docsUrl: pattern.docsUrl }),
-            ...(pattern.tags !== undefined && { tags: [...pattern.tags] })
-          }))
-        }
-      }
-
-      // Boundary rules - convert config boundaries to actual rules
-      if (config.boundaries) {
-        for (const boundary of config.boundaries) {
-          rules.push(makeBoundaryRule({
-            id: boundary.id,
-            from: boundary.from,
-            disallow: [...boundary.disallow],
-            message: boundary.message,
-            severity: boundary.severity,
-            ...(boundary.docsUrl !== undefined && { docsUrl: boundary.docsUrl }),
-            ...(boundary.tags !== undefined && { tags: [...boundary.tags] })
-          }))
-        }
-      }
-
-      const results = yield* runner.runRules(rules, config)
+      const results = yield* runner.runRules(rules, effectiveConfig)
 
       const metricsData = calculateMetrics(results)
 
@@ -136,7 +92,7 @@ export const metricsCommand = Command.make(
 
       // Write Amp context if requested
       if (ampOut._tag === "Some") {
-        yield* writeMetricsContext(ampOut.value, results, config)
+        yield* writeMetricsContext(ampOut.value, results, effectiveConfig)
         yield* Console.log(`\n✓ Wrote Amp metrics to ${ampOut.value}`)
       }
 

@@ -181,7 +181,10 @@ export const makeBoundaryRule = (input: MakeBoundaryRuleInput): Rule => ({
 
         for (const importPath of imports) {
           const isDisallowed = input.disallow.some(pattern => {
-            const regex = new RegExp(pattern.replace("*", ".*"))
+            // Convert glob pattern to regex
+            // For module specifiers, * matches any characters including /
+            const regexPattern = pattern.replace(/\*/g, ".*")
+            const regex = new RegExp(regexPattern)
             return regex.test(importPath)
           })
 
