@@ -88,7 +88,9 @@ export const resolveAmpOut = (opt: Option.Option<string>): AmpOutMode =>
       if (path === "" || path === "__DEFAULT__") {
         return { _tag: "Default" as const, path: AMP_OUT_DEFAULT }
       }
-      if (/\.(json|md|txt|yaml|yml|xml)$/i.test(path)) {
+      // Validate: reject common file extensions, but allow directory names like ".amp"
+      // Only reject if it looks like a file (extension at end, not just a dot in path)
+      if (/\.(json|md|txt|yaml|yml|xml|log|csv)$/i.test(path)) {
         throw new Error(
           `--amp-out must be a directory path, not a filename. Remove the file extension (e.g., use '.amp/output' instead of '.amp/output.json')`
         )
