@@ -314,3 +314,37 @@ export { RuleRunner, type RuleRunnerService } from "./services/RuleRunner.js"
  * ```
  */
 export { RuleRunnerLayer, RuleRunnerLive } from "./services/RuleRunner.js"
+
+// ============================================================================
+// Amp Context Generation
+// ============================================================================
+
+/**
+ * Default output directory for Amp context files.
+ */
+export { AMP_OUT_DEFAULT } from "./amp/constants.js"
+
+/**
+ * Update index.json with thread references.
+ */
+export { updateIndexWithThreads } from "./amp/context-writer.js"
+
+/**
+ * Write audit context to file for Amp integration.
+ */
+export { writeAmpContext } from "./amp/context-writer.js"
+
+/**
+ * Write metrics context to file for Amp integration.
+ */
+export { writeMetricsContext } from "./amp/metrics-writer.js"
+
+/**
+ * Add a thread reference to the tracking system.
+ */
+export { addThread } from "./amp/thread-manager.js"
+
+/**
+ * Read all tracked thread references.
+ */
+export { readThreads } from "./amp/thread-manager.js"
