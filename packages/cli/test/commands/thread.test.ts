@@ -1,3 +1,5 @@
+import { addThread, readThreads, validateThreadUrl } from "@effect-migrate/core/amp"
+import type { ThreadsFile } from "@effect-migrate/core/amp"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
@@ -5,8 +7,6 @@ import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { addThread, readThreads, validateThreadUrl } from "../../src/amp/thread-manager.js"
-import type { ThreadsFile } from "../../src/amp/thread-manager.js"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)

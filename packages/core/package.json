@@ -15,6 +15,14 @@
     ".": {
       "types": "./build/esm/index.d.ts",
       "import": "./build/esm/index.js"
+    },
+    "./schema": {
+      "types": "./build/esm/schema/index.d.ts",
+      "import": "./build/esm/schema/index.js"
+    },
+    "./amp": {
+      "types": "./build/esm/amp/index.d.ts",
+      "import": "./build/esm/amp/index.js"
     }
   },
   "sideEffects": [],
@@ -40,15 +48,15 @@
     "lint:fix": "eslint . --fix && prettier --write \"**/*.{json,md,yml,yaml}\""
   },
   "dependencies": {
-    "effect": "3.18.4",
-    "@effect/platform": "0.92.1",
-    "@effect/platform-node": "0.98.4",
-    "tsx": "^4.19.2"
+    "@effect/platform": "0.93.0",
+    "@effect/platform-node": "0.100.0",
+    "effect": "3.19.2",
+    "tsx": "^4.20.6"
   },
   "devDependencies": {
-    "@effect/vitest": "^0.26.0",
-    "@types/node": "latest",
-    "typescript": "latest",
+    "@effect/vitest": "^0.27.0",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "peerDependencies": {

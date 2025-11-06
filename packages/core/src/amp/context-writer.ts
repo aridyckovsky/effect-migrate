@@ -40,6 +40,16 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
+import {
+  AmpAuditContext,
+  type AmpAuditContext as AmpAuditContextType,
+  AmpContextIndex,
+  type AmpContextIndex as AmpContextIndexType,
+  SCHEMA_VERSION,
+  ThreadEntry,
+  type ThreadReference as ThreadReferenceType,
+  ThreadsFile
+} from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -47,175 +57,7 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { readThreads, type ThreadEntry, type ThreadsFile } from "./thread-manager.js"
-
-/**
- * Thread reference schema for tracking Amp threads where migration work occurred.
- *
- * @category Schema
- * @since 0.1.0
- * @planned Will be populated by `effect-migrate thread add` command
- */
-/**
- * Rule result schema matching RuleResult from @effect-migrate/core.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const RuleResultSchema = Schema.Struct({
-  /** Unique rule identifier */
-  id: Schema.String,
-  /** Rule type (pattern, boundary, etc.) */
-  ruleKind: Schema.String,
-  /** Severity level */
-  severity: Schema.Literal("error", "warning", "info"),
-  /** Human-readable message */
-  message: Schema.String,
-  /** File path where violation occurred */
-  file: Schema.optional(Schema.String),
-  /** Line and column range */
-  range: Schema.optional(Schema.Struct({
-    start: Schema.Struct({
-      line: Schema.Number,
-      column: Schema.Number
-    }),
-    end: Schema.Struct({
-      line: Schema.Number,
-      column: Schema.Number
-    })
-  })),
-  /** Documentation URL */
-  docsUrl: Schema.optional(Schema.String),
-  /** Rule tags */
-  tags: Schema.optional(Schema.Array(Schema.String))
-})
-
-export const ThreadReference = Schema.Struct({
-  /** Thread URL in format: https://ampcode.com/threads/T-{uuid} */
-  url: Schema.String.pipe(
-    Schema.pattern(/^https:\/\/ampcode\.com\/threads\/T-[a-f0-9-]+$/)
-  ),
-  /** ISO timestamp when thread was created or linked */
-  timestamp: Schema.DateTimeUtc,
-  /** User-provided description of work done in this thread */
-  description: Schema.optional(Schema.String),
-  /** Files modified in this thread */
-  filesChanged: Schema.optional(Schema.Array(Schema.String)),
-  /** Rule IDs resolved or addressed in this thread */
-  rulesResolved: Schema.optional(Schema.Array(Schema.String)),
-  /** Tags for categorizing threads */
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Scope filter for grouping threads */
-  scope: Schema.optional(Schema.Array(Schema.String))
-})
-
-/**
- * Summary statistics for migration findings.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const FindingsSummary = Schema.Struct({
-  /** Number of error-severity findings */
-  errors: Schema.Number,
-  /** Number of warning-severity findings */
-  warnings: Schema.Number,
-  /** Total number of files with findings */
-  totalFiles: Schema.Number,
-  /** Total number of findings across all files */
-  totalFindings: Schema.Number
-})
-
-/**
- * Configuration snapshot included in context output.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const ConfigSnapshot = Schema.Struct({
-  /** Rule IDs that produced findings */
-  rulesEnabled: Schema.Array(Schema.String),
-  /** Severity levels that cause audit failure */
-  failOn: Schema.Array(Schema.String)
-})
-
-/**
- * Grouped findings by file and by rule.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const FindingsGroup = Schema.Struct({
-  /** Findings grouped by file path (relative to project root, POSIX-style) */
-  byFile: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
-  /** Findings grouped by rule ID */
-  byRule: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
-  /** Summary statistics */
-  summary: FindingsSummary
-})
-
-/**
- * Complete audit context schema.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const AmpAuditContext = Schema.Struct({
-  /** Context format version */
-  version: Schema.Number,
-  /** effect-migrate tool version */
-  toolVersion: Schema.String,
-  /** Project root directory (relative, defaults to ".") */
-  projectRoot: Schema.String,
-  /** ISO timestamp when context was generated */
-  timestamp: Schema.DateTimeUtc,
-  /** Grouped findings */
-  findings: FindingsGroup,
-  /** Config snapshot */
-  config: ConfigSnapshot,
-  /** Thread references (future feature) */
-  threads: Schema.optional(Schema.Array(ThreadReference))
-})
-
-/**
- * Index schema that points to other context files.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const AmpContextIndex = Schema.Struct({
-  /** Index format version */
-  version: Schema.Number,
-  /** Schema version for compatibility tracking */
-  schemaVersion: Schema.String,
-  /** effect-migrate tool version */
-  toolVersion: Schema.String,
-  /** Project root directory (relative, defaults to ".") */
-  projectRoot: Schema.String,
-  /** ISO timestamp when index was generated */
-  timestamp: Schema.DateTimeUtc,
-  /** Relative paths to context files */
-  files: Schema.Struct({
-    /** Path to audit.json */
-    audit: Schema.String,
-    /** Path to metrics.json (future) */
-    metrics: Schema.optional(Schema.String),
-    /** Path to badges.md */
-    badges: Schema.optional(Schema.String),
-    /** Path to threads.json (present when threads exist) */
-    threads: Schema.optional(Schema.String)
-  })
-})
-
-/**
- * Extract TypeScript types from schemas.
- *
- * @category Types
- * @since 0.1.0
- */
-export type AmpAuditContext = typeof AmpAuditContext.Type
-export type AmpContextIndex = typeof AmpContextIndex.Type
-export type ThreadReference = typeof ThreadReference.Type
+import { readThreads } from "./thread-manager.js"
 
 /**
  * Transform ThreadEntry to ThreadReference format.
@@ -242,7 +84,7 @@ export type ThreadReference = typeof ThreadReference.Type
  * @category Pure Function
  * @since 0.2.0
  */
-const threadEntryToReference = (entry: ThreadEntry): ThreadReference => ({
+const threadEntryToReference = (entry: ThreadEntry): ThreadReferenceType => ({
   url: entry.url,
   timestamp: entry.createdAt,
   ...(entry.description && { description: entry.description }),
@@ -268,7 +110,7 @@ const threadEntryToReference = (entry: ThreadEntry): ThreadReference => ({
  * const auditThreads = toAuditThreads(threadsFile)
  * ```
  */
-export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadReference> => {
+export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadReferenceType> => {
   return threadsFile.threads.map(threadEntryToReference)
 }
 
@@ -296,6 +138,9 @@ export interface PackageMeta {
 }
 
 /**
+ * TODO: This should fall back to something below our current working schema
+ * insead of something a major version ahead.
+ *
  * Get package metadata from package.json.
  *
  * Reads both version and schemaVersion from package.json at runtime.
@@ -323,7 +168,10 @@ const getPackageMeta = Effect.gen(function*() {
     packageJsonPath = path.join(dirname, "..", "..", "package.json")
   }
 
-  const content = yield* fs.readFileString(packageJsonPath)
+  const content = yield* fs.readFileString(packageJsonPath).pipe(
+    Effect.catchAll(() => Effect.fail(new Error("package.json not found")))
+  )
+
   const pkg = yield* Effect.try({
     try: () => JSON.parse(content) as unknown,
     catch: e => new Error(`Invalid JSON in ${packageJsonPath}: ${String(e)}`)
@@ -333,43 +181,49 @@ const getPackageMeta = Effect.gen(function*() {
     toolVersion: pkg.version,
     schemaVersion: pkg.effectMigrate?.schemaVersion ?? "1.0.0"
   }
-})
+}).pipe(
+  Effect.catchAll(() => Effect.succeed({ toolVersion: "unknown", schemaVersion: "1.0.0" }))
+)
 
 /**
- * Load or create audit context with versioning.
+ * Get next audit revision number by incrementing existing revision.
  *
- * Attempts to load existing audit.json to preserve version history,
- * incrementing version on each update. Falls back to version 1 for new audits.
+ * Attempts to load existing audit.json to extract current revision,
+ * incrementing it by 1. Falls back to revision 1 for:
+ * - New audits (file doesn't exist)
+ * - Legacy audits (missing revision field)
+ * - Parse failures (invalid JSON or schema)
+ *
+ * Uses Effect combinators (no try/catch inside Effect.gen) for proper error handling.
  *
  * @param outputDir - Directory where audit.json is stored
- * @returns Effect containing the next version number
+ * @returns Effect containing the next revision number
  * @category Effect
  * @since 0.2.0
  */
-const getNextAuditVersion = (outputDir: string) =>
+const getNextAuditRevision = (outputDir: string) =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
 
     const auditPath = path.join(outputDir, "audit.json")
 
-    // Try to read existing audit to get current version
-    const existingAudit = yield* fs.readFileString(auditPath).pipe(
+    // Try to read existing audit to get current revision
+    const currentRevision = yield* fs.readFileString(auditPath).pipe(
       Effect.flatMap(content =>
         Effect.try({
           try: () => JSON.parse(content) as unknown,
           catch: e => new Error(`Invalid JSON in ${auditPath}: ${String(e)}`)
         })
       ),
-      Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)),
-      Effect.catchAll(e =>
-        Console.error(`Failed to read existing audit context: ${String(e)}`).pipe(
-          Effect.map(() => null)
-        )
-      )
+      Effect.map((data: any) => {
+        // Extract revision field, default to 0 for legacy files without revision
+        return typeof data.revision === "number" ? data.revision : 0
+      }),
+      Effect.catchAll(() => Effect.succeed(0))
     )
 
-    return existingAudit ? existingAudit.version + 1 : 1
+    return currentRevision + 1
   })
 
 /**
@@ -413,10 +267,10 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const cwd = process.cwd()
 
     // Get dynamic metadata from package.json
-    const { toolVersion, schemaVersion } = yield* getPackageMeta
+    const { toolVersion } = yield* getPackageMeta
 
-    // Get next audit version (increments on each run)
-    const auditVersion = yield* getNextAuditVersion(outputDir)
+    // Get next audit revision (increments on each run)
+    const revision = yield* getNextAuditRevision(outputDir)
 
     // Group findings by file and rule
     const byFile: Record<string, RuleResult[]> = {}
@@ -456,8 +310,9 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const auditThreads = toAuditThreads(threadsFile)
 
     // Create audit context (validated by schema) with conditional threads
-    const auditContext: AmpAuditContext = {
-      version: auditVersion,
+    const auditContext: AmpAuditContextType = {
+      schemaVersion: SCHEMA_VERSION,
+      revision,
       toolVersion,
       projectRoot: ".",
       timestamp,
@@ -487,9 +342,8 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     yield* fs.writeFileString(auditPath, JSON.stringify(auditJson, null, 2))
 
     // Create index (validated by schema)
-    const index: AmpContextIndex = {
-      version: 1,
-      schemaVersion,
+    const index: AmpContextIndexType = {
+      schemaVersion: SCHEMA_VERSION,
       toolVersion,
       projectRoot: ".",
       timestamp,
@@ -548,7 +402,7 @@ Amp will automatically understand:
     yield* fs.writeFileString(badgesPath, badgesContent)
 
     // Log completion
-    yield* Console.log(`  ✓ audit.json (v${auditVersion})`)
+    yield* Console.log(`  ✓ audit.json (revision ${revision})`)
     yield* Console.log(`  ✓ index.json`)
     yield* Console.log(`  ✓ badges.md`)
   })

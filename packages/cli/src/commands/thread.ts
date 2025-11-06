@@ -31,6 +31,7 @@
  * @since 0.2.0
  */
 
+import { addThread, readThreads, updateIndexWithThreads } from "@effect-migrate/core/amp"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import chalk from "chalk"
@@ -38,9 +39,7 @@ import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import { ampOutOption } from "../amp/constants.js"
-import { updateIndexWithThreads } from "../amp/context-writer.js"
-import { addThread, readThreads } from "../amp/thread-manager.js"
+import { ampOutOption, getAmpOutPathWithDefault } from "../amp/options.js"
 
 /**
  * Schema for parsing comma-separated strings into unique, sorted arrays.
@@ -185,6 +184,9 @@ const threadAddCommand = Command.make(
       const scopeList = yield* parseScope(scope)
       const desc = Option.getOrUndefined(description)
 
+      // Resolve output directory (thread command defaults to .amp/effect-migrate if omitted)
+      const outputDir = getAmpOutPathWithDefault(ampOut, ".amp/effect-migrate")
+
       // Add thread - build input object with proper optional handling
       const input = {
         url,
@@ -193,10 +195,10 @@ const threadAddCommand = Command.make(
         ...(desc && { description: desc })
       }
 
-      const result = yield* addThread(ampOut, input)
+      const result = yield* addThread(outputDir, input)
 
       // Update index.json to include threads reference
-      yield* updateIndexWithThreads(ampOut)
+      yield* updateIndexWithThreads(outputDir)
 
       // Log result
       if (result.added) {
@@ -261,7 +263,9 @@ const threadListCommand = Command.make(
   },
   ({ json, ampOut }) =>
     Effect.gen(function*() {
-      const threadsFile = yield* readThreads(ampOut)
+      // Resolve output directory (thread command defaults to .amp/effect-migrate if omitted)
+      const outputDir = getAmpOutPathWithDefault(ampOut, ".amp/effect-migrate")
+      const threadsFile = yield* readThreads(outputDir)
 
       if (json) {
         // Output as JSON directly

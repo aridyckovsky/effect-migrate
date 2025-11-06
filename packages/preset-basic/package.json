@@ -40,12 +40,12 @@
     "lint:fix": "eslint . --fix && prettier --write \"**/*.{json,md,yml,yaml}\""
   },
   "dependencies": {
-    "effect": "3.18.4",
-    "@effect-migrate/core": "workspace:*"
+    "@effect-migrate/core": "workspace:*",
+    "effect": "3.19.2"
   },
   "devDependencies": {
-    "@effect/vitest": "^0.26.0",
-    "typescript": "latest",
+    "@effect/vitest": "^0.27.0",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "peerDependencies": {

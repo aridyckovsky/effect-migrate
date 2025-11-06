@@ -208,6 +208,31 @@ export { defineConfig } from "./schema/loader.js"
 export { ConfigLoadError } from "./schema/loader.js"
 
 // ============================================================================
+// Schema Versioning
+// ============================================================================
+
+/**
+ * Registry of schema versions for all output artifacts.
+ *
+ * Provides single source of truth for versioning index.json, audit.json,
+ * metrics.json, and threads.json. Schema versions follow semver and are
+ * independent of package versions.
+ *
+ * @example
+ * ```ts
+ * import { SCHEMA_VERSION } from "@effect-migrate/core"
+ *
+ * console.log(SCHEMA_VERSION) // "0.1.0"
+ * ```
+ */
+export { SCHEMA_VERSION } from "./schema/index.js"
+
+/**
+ * Type for schema version value.
+ */
+export type { SchemaVersion } from "./schema/index.js"
+
+// ============================================================================
 // Services
 // ============================================================================
 
@@ -283,3 +308,37 @@ export { RuleRunner, type RuleRunnerService } from "./services/RuleRunner.js"
  * ```
  */
 export { RuleRunnerLayer, RuleRunnerLive } from "./services/RuleRunner.js"
+
+// ============================================================================
+// Amp Context Generation
+// ============================================================================
+
+/**
+ * Default output directory for Amp context files.
+ */
+export { AMP_OUT_DEFAULT } from "./amp/constants.js"
+
+/**
+ * Update index.json with thread references.
+ */
+export { updateIndexWithThreads } from "./amp/context-writer.js"
+
+/**
+ * Write audit context to file for Amp integration.
+ */
+export { writeAmpContext } from "./amp/context-writer.js"
+
+/**
+ * Write metrics context to file for Amp integration.
+ */
+export { writeMetricsContext } from "./amp/metrics-writer.js"
+
+/**
+ * Add a thread reference to the tracking system.
+ */
+export { addThread } from "./amp/thread-manager.js"
+
+/**
+ * Read all tracked thread references.
+ */
+export { readThreads } from "./amp/thread-manager.js"

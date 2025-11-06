@@ -29,11 +29,12 @@
  */
 
 import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
+import { writeAmpContext } from "@effect-migrate/core/amp"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
-import { writeAmpContext } from "../amp/context-writer.js"
+import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
@@ -76,7 +77,7 @@ export const auditCommand = Command.make(
     ),
     json: Options.boolean("json").pipe(Options.withDefault(false)),
     strict: Options.boolean("strict").pipe(Options.withDefault(false)),
-    ampOut: Options.text("amp-out").pipe(Options.optional)
+    ampOut: ampOutOption()
   },
   ({ config: configPath, json, strict, ampOut }) =>
     Effect.gen(function*() {
@@ -102,10 +103,11 @@ export const auditCommand = Command.make(
       }
 
       // Write Amp context if requested
-      if (ampOut._tag === "Some") {
-        yield* writeAmpContext(ampOut.value, results, effectiveConfig)
-        yield* Console.log(`\n✓ Wrote Amp context to ${ampOut.value}`)
-      }
+      yield* withAmpOut(ampOut, outDir =>
+        Effect.gen(function*() {
+          yield* writeAmpContext(outDir, results, effectiveConfig)
+          yield* Console.log(`\n✓ Wrote Amp context to ${outDir}`)
+        }))
 
       // Determine exit code
       const errors = results.filter(r => r.severity === "error")

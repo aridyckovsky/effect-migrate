@@ -4,6 +4,7 @@ import * as Command from "@effect/cli/Command"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as Effect from "effect/Effect"
+import { normalizeAmpOutFlag } from "./amp/normalizeArgs.js"
 import { auditCommand } from "./commands/audit.js"
 import { initCommand } from "./commands/init.js"
 import { metricsCommand } from "./commands/metrics.js"
@@ -20,9 +21,12 @@ const cli = mainCommand.pipe(
   Command.withSubcommands([auditCommand, initCommand, metricsCommand, threadCommand])
 )
 
+// Normalize --amp-out bare flag to --amp-out= for parser compatibility
+const argv = normalizeAmpOutFlag(process.argv)
+
 const program = Command.run(cli, {
   name: "effect-migrate",
   version: "0.1.0"
-})(process.argv)
+})(argv)
 
 program.pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
