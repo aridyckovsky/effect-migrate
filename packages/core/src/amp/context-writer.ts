@@ -46,7 +46,9 @@ import {
   AmpContextIndex,
   type AmpContextIndex as AmpContextIndexType,
   SCHEMA_VERSION,
-  type ThreadReference as ThreadReferenceType
+  ThreadEntry,
+  type ThreadReference as ThreadReferenceType,
+  ThreadsFile
 } from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
@@ -55,7 +57,7 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { readThreads, type ThreadEntry, type ThreadsFile } from "./thread-manager.js"
+import { readThreads } from "./thread-manager.js"
 
 /**
  * Transform ThreadEntry to ThreadReference format.

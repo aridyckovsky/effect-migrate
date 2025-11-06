@@ -183,6 +183,7 @@ const threadAddCommand = Command.make(
       const tagsList = yield* parseTags(tags)
       const scopeList = yield* parseScope(scope)
       const desc = Option.getOrUndefined(description)
+      const outputDir = Option.getOrElse(ampOut, () => ".amp/effect-migrate")
 
       // Add thread - build input object with proper optional handling
       const input = {
@@ -192,10 +193,10 @@ const threadAddCommand = Command.make(
         ...(desc && { description: desc })
       }
 
-      const result = yield* addThread(ampOut, input)
+      const result = yield* addThread(outputDir, input)
 
       // Update index.json to include threads reference
-      yield* updateIndexWithThreads(ampOut)
+      yield* updateIndexWithThreads(outputDir)
 
       // Log result
       if (result.added) {
@@ -260,7 +261,8 @@ const threadListCommand = Command.make(
   },
   ({ json, ampOut }) =>
     Effect.gen(function*() {
-      const threadsFile = yield* readThreads(ampOut)
+      const outputDir = Option.getOrElse(ampOut, () => ".amp/effect-migrate")
+      const threadsFile = yield* readThreads(outputDir)
 
       if (json) {
         // Output as JSON directly

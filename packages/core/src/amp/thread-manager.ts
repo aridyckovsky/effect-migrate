@@ -15,6 +15,7 @@ import * as Clock from "effect/Clock"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import * as AmpSchema from "../schema/amp.js"
 
 // Strict thread URL pattern: http(s)://ampcode.com/threads/T-{uuid-v4}
 // UUID must match RFC 4122 format: 8-4-4-4-12 hex digits (lowercase)
@@ -40,54 +41,9 @@ const ThreadUrl = Schema.String.pipe(Schema.pattern(THREAD_URL_RE), Schema.brand
 const mergeUnique = <T>(a: readonly T[] | undefined = [], b: readonly T[] | undefined = []): T[] =>
   Array.from(new Set([...a, ...b])).sort()
 
-/**
- * Thread entry schema for threads.json.
- *
- * Each entry represents an Amp thread URL where migration work occurred,
- * with optional metadata for categorization and filtering.
- *
- * @category Schema
- * @since 0.2.0
- */
-export const ThreadEntry = Schema.Struct({
-  id: Schema.String,
-  url: Schema.String.pipe(
-    Schema.pattern(
-      /^https:\/\/ampcode\.com\/threads\/T-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-    )
-  ),
-  createdAt: Schema.DateTimeUtc,
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  scope: Schema.optional(Schema.Array(Schema.String)),
-  description: Schema.optional(Schema.String)
-})
-
-/**
- * Threads file schema for threads.json.
- *
- * Root structure containing version and array of thread entries.
- * Threads are sorted by createdAt descending (newest first).
- *
- * **Note:** The `version` field tracks the audit version these threads
- * are associated with, NOT a schema version for threads.json itself.
- * This version should match the audit.json version from context-writer.
- *
- * @category Schema
- * @since 0.2.0
- */
-export const ThreadsFile = Schema.Struct({
-  version: Schema.Number,
-  threads: Schema.Array(ThreadEntry)
-})
-
-/**
- * Extracted TypeScript types from schemas.
- *
- * @category Types
- * @since 0.2.0
- */
-export type ThreadEntry = typeof ThreadEntry.Type
-export type ThreadsFile = typeof ThreadsFile.Type
+// Local type aliases for internal use
+type ThreadEntry = AmpSchema.ThreadEntry
+type ThreadsFile = AmpSchema.ThreadsFile
 
 /**
  * Extract normalized thread ID from Amp thread URL.
@@ -283,7 +239,7 @@ export const readThreads = (
     }
 
     // Decode with schema - log warning and return empty on failure
-    const decode = Schema.decodeUnknownSync(ThreadsFile)
+    const decode = Schema.decodeUnknownSync(AmpSchema.ThreadsFile)
 
     return yield* Effect.try({
       try: () => decode(data),
@@ -319,7 +275,7 @@ export const writeThreads = (
     yield* fs.makeDirectory(outputDir, { recursive: true })
 
     // Encode and write
-    const encode = Schema.encodeSync(ThreadsFile)
+    const encode = Schema.encodeSync(AmpSchema.ThreadsFile)
     const encoded = encode(data)
     const threadsPath = path.join(outputDir, "threads.json")
 

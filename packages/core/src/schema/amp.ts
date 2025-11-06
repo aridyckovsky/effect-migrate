@@ -204,6 +204,114 @@ export const AmpContextIndex = Schema.Struct({
 })
 
 /**
+ * Thread entry schema for threads.json.
+ *
+ * Each entry represents an Amp thread URL where migration work occurred,
+ * with optional metadata for categorization and filtering.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const ThreadEntry = Schema.Struct({
+  id: Schema.String,
+  url: Schema.String.pipe(
+    Schema.pattern(
+      /^https:\/\/ampcode\.com\/threads\/T-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+    )
+  ),
+  createdAt: Schema.DateTimeUtc,
+  tags: Schema.optional(Schema.Array(Schema.String)),
+  scope: Schema.optional(Schema.Array(Schema.String)),
+  description: Schema.optional(Schema.String)
+})
+
+/**
+ * Threads file schema for threads.json.
+ *
+ * Root structure containing version and array of thread entries.
+ * Threads are sorted by createdAt descending (newest first).
+ *
+ * **Note:** The `version` field tracks the audit version these threads
+ * are associated with, NOT a schema version for threads.json itself.
+ * This version should match the audit.json version from context-writer.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const ThreadsFile = Schema.Struct({
+  version: Schema.Number,
+  threads: Schema.Array(ThreadEntry)
+})
+
+/**
+ * Metrics summary schema.
+ *
+ * Aggregated statistics about migration progress and violation counts.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const MetricsSummary = Schema.Struct({
+  /** Total violations across all rules */
+  totalViolations: Schema.Number,
+  /** Error-level violations */
+  errors: Schema.Number,
+  /** Warning-level violations */
+  warnings: Schema.Number,
+  /** Number of files with violations */
+  filesAffected: Schema.Number,
+  /** Migration completion percentage (0-100) */
+  progressPercentage: Schema.Number
+})
+
+/**
+ * Per-rule metrics schema.
+ *
+ * Breakdown of violations by individual rule.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const RuleMetrics = Schema.Struct({
+  /** Rule ID */
+  id: Schema.String,
+  /** Number of violations */
+  violations: Schema.Number,
+  /** Severity level */
+  severity: Schema.Literal("error", "warning", "info"),
+  /** Files affected by this rule */
+  filesAffected: Schema.Number
+})
+
+/**
+ * Complete metrics context schema.
+ *
+ * Full metrics output including summary, per-rule breakdown, and optional goals.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const AmpMetricsContext = Schema.Struct({
+  /** Context version */
+  version: Schema.Number,
+  /** Tool version */
+  toolVersion: Schema.String,
+  /** Project root path */
+  projectRoot: Schema.String,
+  /** Timestamp */
+  timestamp: Schema.DateTimeUtc,
+  /** Summary metrics */
+  summary: MetricsSummary,
+  /** Per-rule breakdown */
+  ruleBreakdown: Schema.Array(RuleMetrics),
+  /** Migration goals (future) */
+  goals: Schema.optional(Schema.Struct({
+    targetDate: Schema.optional(Schema.DateTimeUtc),
+    targetProgress: Schema.optional(Schema.Number)
+  }))
+})
+
+/**
  * Extract TypeScript types from schemas.
  *
  * These type exports enable consumers to use the inferred TypeScript types
@@ -215,3 +323,8 @@ export const AmpContextIndex = Schema.Struct({
 export type AmpAuditContext = Schema.Schema.Type<typeof AmpAuditContext>
 export type AmpContextIndex = Schema.Schema.Type<typeof AmpContextIndex>
 export type ThreadReference = Schema.Schema.Type<typeof ThreadReference>
+export type ThreadEntry = Schema.Schema.Type<typeof ThreadEntry>
+export type ThreadsFile = Schema.Schema.Type<typeof ThreadsFile>
+export type MetricsSummary = Schema.Schema.Type<typeof MetricsSummary>
+export type RuleMetrics = Schema.Schema.Type<typeof RuleMetrics>
+export type AmpMetricsContext = Schema.Schema.Type<typeof AmpMetricsContext>

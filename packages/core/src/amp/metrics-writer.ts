@@ -16,82 +16,10 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import * as AmpSchema from "../schema/amp.js"
 
-/**
- * Metrics summary schema.
- *
- * Aggregated statistics about migration progress and violation counts.
- *
- * @category Schema
- * @since 0.2.0
- */
-export const MetricsSummary = Schema.Struct({
-  /** Total violations across all rules */
-  totalViolations: Schema.Number,
-  /** Error-level violations */
-  errors: Schema.Number,
-  /** Warning-level violations */
-  warnings: Schema.Number,
-  /** Number of files with violations */
-  filesAffected: Schema.Number,
-  /** Migration completion percentage (0-100) */
-  progressPercentage: Schema.Number
-})
-
-/**
- * Per-rule metrics schema.
- *
- * Breakdown of violations by individual rule.
- *
- * @category Schema
- * @since 0.2.0
- */
-export const RuleMetrics = Schema.Struct({
-  /** Rule ID */
-  id: Schema.String,
-  /** Number of violations */
-  violations: Schema.Number,
-  /** Severity level */
-  severity: Schema.Literal("error", "warning", "info"),
-  /** Files affected by this rule */
-  filesAffected: Schema.Number
-})
-
-/**
- * Complete metrics context schema.
- *
- * Full metrics output including summary, per-rule breakdown, and optional goals.
- *
- * @category Schema
- * @since 0.2.0
- */
-export const AmpMetricsContext = Schema.Struct({
-  /** Context version */
-  version: Schema.Number,
-  /** Tool version */
-  toolVersion: Schema.String,
-  /** Project root path */
-  projectRoot: Schema.String,
-  /** Timestamp */
-  timestamp: Schema.DateTimeUtc,
-  /** Summary metrics */
-  summary: MetricsSummary,
-  /** Per-rule breakdown */
-  ruleBreakdown: Schema.Array(RuleMetrics),
-  /** Migration goals (future) */
-  goals: Schema.optional(Schema.Struct({
-    targetDate: Schema.optional(Schema.DateTimeUtc),
-    targetProgress: Schema.optional(Schema.Number)
-  }))
-})
-
-/**
- * Extracted TypeScript type from AmpMetricsContext schema.
- *
- * @category Types
- * @since 0.2.0
- */
-export type AmpMetricsContext = typeof AmpMetricsContext.Type
+// Local type alias for internal use
+type AmpMetricsContext = AmpSchema.AmpMetricsContext
 
 /**
  * Write metrics context to the Amp output directory.
@@ -171,7 +99,7 @@ export const writeMetricsContext = (
     }
 
     // Encode and write
-    const encode = Schema.encodeSync(AmpMetricsContext)
+    const encode = Schema.encodeSync(AmpSchema.AmpMetricsContext)
     const metricsJson = encode(metricsContext)
 
     const metricsPath = path.join(outputDir, "metrics.json")
