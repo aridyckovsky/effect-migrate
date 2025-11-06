@@ -14,13 +14,16 @@ cd examples/mid-migration
 pnpm install
 
 # 3. Run the audit
-pnpm audit
+pnpm run effect-migrate:audit
 
 # Or get JSON output
-pnpm audit:json
+pnpm run effect-migrate:audit:json
 
-# Or use the CLI directly with custom config
-node ../../packages/cli/build/esm/index.js audit --config effect-migrate.config.ts
+# Or use the CLI directly (after install)
+pnpm effect-migrate audit
+
+# Or with a custom config
+pnpm effect-migrate audit --config custom-config.ts
 ```
 
 ## Configuration Files

@@ -1,33 +1,39 @@
-export default {
+import { defineConfig } from "@effect-migrate/core"
+
+/**
+ * Legacy API example configuration
+ *
+ * This example shows a legacy codebase with async/await patterns
+ * that need to be migrated to Effect patterns.
+ *
+ * Demonstrates:
+ * - Using preset-basic for common migration rules
+ * - Custom patterns for specific API patterns
+ * - Proper path configuration for TypeScript projects
+ */
+export default defineConfig({
   version: 1,
+
+  // Load preset-basic for common Effect migration rules
+  presets: ["@effect-migrate/preset-basic"],
+
   paths: {
     root: "src",
     include: ["**/*.ts"],
-    exclude: ["node_modules/**", "dist/**"]
+    exclude: ["node_modules/**", "dist/**", "**/*.test.ts"]
   },
-  // For now, define rules inline - later we'll load from presets
+
+  // Additional custom rules specific to this API
   patterns: [
     {
-      id: "no-async-await",
-      pattern: "\\basync\\s+(function\\s+\\w+|(\\([^)]*\\)|[\\w]+)\\s*=>)",
+      id: "no-express-middleware",
+      pattern: "\\(req:\\s*Request,\\s*res:\\s*Response",
       files: "**/*.ts",
-      message: "Replace async/await with Effect.gen for composable async operations",
-      severity: "warning"
-    },
-    {
-      id: "no-promise-constructor",
-      pattern: "new\\s+Promise\\s*<",
-      files: "**/*.ts",
-      message: "Replace new Promise() with Effect.async or Effect.tryPromise",
-      severity: "warning"
-    },
-    {
-      id: "no-try-catch",
-      pattern: "\\btry\\s*\\{",
-      files: "**/*.ts",
-      message: "Replace try/catch with Effect.catchAll or Effect.tryPromise",
-      severity: "warning"
+      message: "Consider migrating Express middleware to @effect/platform HttpServer",
+      severity: "warning",
+      docsUrl: "https://effect.website/docs/guides/http-server"
     }
   ],
+
   concurrency: 4
-}
+})

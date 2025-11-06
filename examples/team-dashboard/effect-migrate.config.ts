@@ -52,8 +52,8 @@ export default defineConfig({
   boundaries: [
     {
       id: "no-repository-in-controllers",
-      from: "controllers/**",
-      disallow: ["repositories/**"],
+      from: "src/controllers/**",
+      disallow: ["src/repositories/**"],
       severity: "error",
       message: "Controllers should not import repositories directly - use services layer",
       tags: ["architecture", "layering"]
