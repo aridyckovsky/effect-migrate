@@ -39,7 +39,7 @@ export const presetBasic: Preset = {
     // Filter out no-unhandled-effect: regex-based detection has too many false positives
     // Use @effect/language-service for proper type-based Effect detection instead
     // See: https://github.com/aridyckovsky/effect-migrate/issues/38
-    ...patternRules.filter((rule) => rule.id !== "no-unhandled-effect"),
+    ...patternRules.filter(rule => rule.id !== "no-unhandled-effect"),
     ...boundaryRules
   ],
   defaults: {
