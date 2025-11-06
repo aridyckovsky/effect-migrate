@@ -1,5 +1,24 @@
 # @effect-migrate/preset-basic
 
+## 0.3.0
+
+### Minor Changes
+
+- [#31](https://github.com/aridyckovsky/effect-migrate/pull/31) [`fc74df3`](https://github.com/aridyckovsky/effect-migrate/commit/fc74df31f132cc7af7a3bb146b2015e44477f199) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Export complete preset with 17 rules (13 pattern + 4 boundary) and default configuration
+
+### Patch Changes
+
+- [#40](https://github.com/aridyckovsky/effect-migrate/pull/40) [`b8c540a`](https://github.com/aridyckovsky/effect-migrate/commit/b8c540a297030e4dc275301e1cbc09f5a19e90ea) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Upgrade `effect` packages and fix dependency versions
+  - Upgrade `effect` from 3.18.4 to 3.19.2
+  - Upgrade `@effect/platform` from 0.92.1 to 0.93.0
+  - Upgrade `@effect/platform-node` from 0.98.4 to 0.100.0
+  - Upgrade `@effect/cli` from 0.71.0 to 0.72.0
+  - Upgrade `@effect/vitest` from 0.26.0 to 0.27.0
+  - Replace "latest" with specific versions for `@types/node` (^24.10.0) and `typescript` (^5.9.3)
+
+- Updated dependencies [[`eeb0290`](https://github.com/aridyckovsky/effect-migrate/commit/eeb02904f29c98a4b5ecf0f7b338932e3450773a), [`eeb0290`](https://github.com/aridyckovsky/effect-migrate/commit/eeb02904f29c98a4b5ecf0f7b338932e3450773a), [`255240b`](https://github.com/aridyckovsky/effect-migrate/commit/255240b133c6975e34467fc4d0c2d19089d92306), [`b8c540a`](https://github.com/aridyckovsky/effect-migrate/commit/b8c540a297030e4dc275301e1cbc09f5a19e90ea)]:
+  - @effect-migrate/core@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes
