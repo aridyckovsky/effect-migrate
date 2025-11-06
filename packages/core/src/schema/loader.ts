@@ -37,7 +37,10 @@ export class ConfigLoadError extends Schema.TaggedError<ConfigLoadError>()("Conf
  * Provides autocomplete and type checking when authoring config files.
  * Pass-through function that returns config unchanged.
  *
- * @param config - Configuration object
+ * Accepts the encoded input format (e.g., pattern as string, not RegExp)
+ * which will be validated and transformed by the loader.
+ *
+ * @param config - Configuration object (input/encoded format)
  * @returns Same config object (typed)
  *
  * @category Helper
@@ -45,19 +48,24 @@ export class ConfigLoadError extends Schema.TaggedError<ConfigLoadError>()("Conf
  *
  * @example
  * ```typescript
- * // effect-migrate.config.ts
  * import { defineConfig } from "@effect-migrate/core"
  *
  * export default defineConfig({
  *   version: 1,
- *   paths: { exclude: ["node_modules/**"] },
- *   patterns: [...]
+ *   paths: { exclude: ["node_modules"] },
+ *   patterns: [{
+ *     id: "no-async",
+ *     pattern: "async function",
+ *     files: "src",
+ *     message: "Use Effect.gen",
+ *     severity: "warning"
+ *   }]
  * })
  * ```
  */
 export const defineConfig = (
-  config: Schema.Schema.Type<typeof ConfigSchema>
-): Schema.Schema.Type<typeof ConfigSchema> => config
+  config: Schema.Schema.Encoded<typeof ConfigSchema>
+): Schema.Schema.Encoded<typeof ConfigSchema> => config
 
 /**
  * Load and validate configuration from file.
