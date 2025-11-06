@@ -5,13 +5,14 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
+import { SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { AmpContextIndex, writeAmpContext } from "../../src/amp/context-writer.js"
+import { AmpAuditContext, AmpContextIndex, writeAmpContext } from "../../src/amp/context-writer.js"
 import { addThread } from "../../src/amp/thread-manager.js"
 
 describe("context-writer", () => {
@@ -62,11 +63,16 @@ describe("context-writer", () => {
       expect(typeof index.schemaVersion).toBe("string")
       expect(index.schemaVersion).toMatch(/^\d+\.\d+\.\d+$/)
 
-      // Should be "1.0.0" from package.json effectMigrate.schemaVersion
-      expect(index.schemaVersion).toBe("1.0.0")
+      // Should match SCHEMA_VERSIONS.index from core
+      expect(index.schemaVersion).toBe(SCHEMA_VERSIONS.index)
+      expect(index.schemaVersion).toBe("0.1.0")
+
+      // Verify versions object with audit version
+      expect(index.versions).toBeDefined()
+      expect(index.versions?.audit).toBe(SCHEMA_VERSIONS.audit)
+      expect(index.versions?.audit).toBe("0.1.0")
 
       // Verify other required fields
-      expect(index.version).toBe(1)
       expect(index.toolVersion).toBeDefined()
       expect(index.projectRoot).toBe(".")
     }).pipe(Effect.provide(NodeContext.layer)))
@@ -151,7 +157,7 @@ describe("context-writer", () => {
       yield* writeAmpContext(outputDir, testResults, testConfig)
         .pipe(Effect.provideService(FileSystem.FileSystem, mockFs))
 
-      // Verify fallback to "1.0.0"
+      // Verify uses SCHEMA_VERSIONS.index from core (not from package.json)
       const indexPath = path.join(outputDir, "index.json")
       const indexContent = yield* fs.readFileString(indexPath)
       const index = yield* Effect.try({
@@ -159,7 +165,8 @@ describe("context-writer", () => {
         catch: e => new Error(String(e))
       }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
 
-      expect(index.schemaVersion).toBe("1.0.0")
+      expect(index.schemaVersion).toBe(SCHEMA_VERSIONS.index)
+      expect(index.schemaVersion).toBe("0.1.0")
       expect(index.toolVersion).toBe("9.9.9")
     }).pipe(Effect.provide(NodeContext.layer)))
 
@@ -214,4 +221,157 @@ describe("context-writer", () => {
       // Should NOT have threads field (omitted, not null)
       expect(index.files.threads).toBeUndefined()
     }).pipe(Effect.provide(NodeContext.layer)))
+
+  describe("Phase 3 - Schema Version Contract Tests", () => {
+    it.scoped("audit.json should include schemaVersion field from SCHEMA_VERSIONS.audit", () =>
+      Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+
+        const tmpDir = yield* fs.makeTempDirectoryScoped()
+        const outputDir = path.join(tmpDir, "amp-test")
+
+        // Arrange & Act
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        // Assert - Read and decode audit.json
+        const auditPath = path.join(outputDir, "audit.json")
+        const auditContent = yield* fs.readFileString(auditPath)
+        const audit = yield* Effect.try({
+          try: () => JSON.parse(auditContent) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+
+        // Verify schemaVersion matches the constant from core
+        expect(audit.schemaVersion).toBe(SCHEMA_VERSIONS.audit)
+        expect(audit.schemaVersion).toBe("0.1.0")
+      }).pipe(Effect.provide(NodeContext.layer)))
+
+    it.scoped("audit.json should include revision field starting at 1", () =>
+      Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+
+        const tmpDir = yield* fs.makeTempDirectoryScoped()
+        const outputDir = path.join(tmpDir, "amp-test")
+
+        // Arrange & Act - First audit write
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        // Assert - Read and decode audit.json
+        const auditPath = path.join(outputDir, "audit.json")
+        const auditContent = yield* fs.readFileString(auditPath)
+        const audit = yield* Effect.try({
+          try: () => JSON.parse(auditContent) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+
+        // Verify revision starts at 1
+        expect(audit.revision).toBe(1)
+        expect(typeof audit.revision).toBe("number")
+      }).pipe(Effect.provide(NodeContext.layer)))
+
+    it.scoped("revision should increment on subsequent writes (1 -> 2 -> 3)", () =>
+      Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+
+        const tmpDir = yield* fs.makeTempDirectoryScoped()
+        const outputDir = path.join(tmpDir, "amp-test")
+
+        // Arrange & Act - First write (revision 1)
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        const auditPath = path.join(outputDir, "audit.json")
+
+        // Assert - Verify revision 1
+        const audit1Content = yield* fs.readFileString(auditPath)
+        const audit1 = yield* Effect.try({
+          try: () => JSON.parse(audit1Content) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+        expect(audit1.revision).toBe(1)
+
+        // Act - Second write (revision 2)
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        // Assert - Verify revision incremented to 2
+        const audit2Content = yield* fs.readFileString(auditPath)
+        const audit2 = yield* Effect.try({
+          try: () => JSON.parse(audit2Content) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+        expect(audit2.revision).toBe(2)
+
+        // Act - Third write (revision 3)
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        // Assert - Verify revision incremented to 3
+        const audit3Content = yield* fs.readFileString(auditPath)
+        const audit3 = yield* Effect.try({
+          try: () => JSON.parse(audit3Content) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+        expect(audit3.revision).toBe(3)
+      }).pipe(Effect.provide(NodeContext.layer)))
+
+    it.scoped("index.json versions.audit should match SCHEMA_VERSIONS.audit", () =>
+      Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+
+        const tmpDir = yield* fs.makeTempDirectoryScoped()
+        const outputDir = path.join(tmpDir, "amp-test")
+
+        // Arrange & Act
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        // Assert - Read and decode index.json
+        const indexPath = path.join(outputDir, "index.json")
+        const indexContent = yield* fs.readFileString(indexPath)
+        const index = yield* Effect.try({
+          try: () => JSON.parse(indexContent) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
+
+        // Verify versions.audit matches the constant from core
+        expect(index.versions?.audit).toBe(SCHEMA_VERSIONS.audit)
+        expect(index.versions?.audit).toBe("0.1.0")
+      }).pipe(Effect.provide(NodeContext.layer)))
+
+    it.scoped("revision should handle legacy audit files without revision field", () =>
+      Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+
+        const tmpDir = yield* fs.makeTempDirectoryScoped()
+        const outputDir = path.join(tmpDir, "amp-test")
+
+        // Arrange - Create legacy audit.json without revision field
+        yield* fs.makeDirectory(outputDir, { recursive: true })
+        const auditPath = path.join(outputDir, "audit.json")
+        const legacyAudit = {
+          schemaVersion: "0.1.0",
+          toolVersion: "0.1.0",
+          projectRoot: ".",
+          timestamp: "2025-01-01T00:00:00.000Z",
+          findings: { byFile: {}, byRule: {}, summary: { errors: 0, warnings: 0, totalFiles: 0, totalFindings: 0 } },
+          config: { rulesEnabled: [], failOn: ["error"] }
+          // Note: no revision field
+        }
+        yield* fs.writeFileString(auditPath, JSON.stringify(legacyAudit, null, 2))
+
+        // Act - Write new audit (should start at revision 1 for legacy files)
+        yield* writeAmpContext(outputDir, testResults, testConfig)
+
+        // Assert - Verify revision is 1 (legacy files treated as revision 0)
+        const auditContent = yield* fs.readFileString(auditPath)
+        const audit = yield* Effect.try({
+          try: () => JSON.parse(auditContent) as unknown,
+          catch: e => new Error(String(e))
+        }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+
+        expect(audit.revision).toBe(1)
+      }).pipe(Effect.provide(NodeContext.layer)))
+  })
 })
