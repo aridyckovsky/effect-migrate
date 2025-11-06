@@ -34,7 +34,7 @@ import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
-import { ampOutOption } from "../amp/options.js"
+import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
 
@@ -92,10 +92,11 @@ export const metricsCommand = Command.make(
       }
 
       // Write Amp context if requested
-      if (ampOut._tag === "Some") {
-        yield* writeMetricsContext(ampOut.value, results, effectiveConfig)
-        yield* Console.log(`\n✓ Wrote Amp metrics to ${ampOut.value}`)
-      }
+      yield* withAmpOut(ampOut, outDir =>
+        Effect.gen(function*() {
+          yield* writeMetricsContext(outDir, results, effectiveConfig)
+          yield* Console.log(`\n✓ Wrote Amp metrics to ${outDir}`)
+        }))
 
       return 0
     }).pipe(

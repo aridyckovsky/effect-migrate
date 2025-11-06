@@ -34,7 +34,7 @@ import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
-import { ampOutOption } from "../amp/options.js"
+import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
@@ -103,10 +103,11 @@ export const auditCommand = Command.make(
       }
 
       // Write Amp context if requested
-      if (ampOut._tag === "Some") {
-        yield* writeAmpContext(ampOut.value, results, effectiveConfig)
-        yield* Console.log(`\n✓ Wrote Amp context to ${ampOut.value}`)
-      }
+      yield* withAmpOut(ampOut, outDir =>
+        Effect.gen(function*() {
+          yield* writeAmpContext(outDir, results, effectiveConfig)
+          yield* Console.log(`\n✓ Wrote Amp context to ${outDir}`)
+        }))
 
       // Determine exit code
       const errors = results.filter(r => r.severity === "error")
