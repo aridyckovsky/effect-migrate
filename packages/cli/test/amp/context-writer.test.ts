@@ -5,14 +5,14 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
-import { SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
+import { AmpAuditContext, AmpContextIndex, SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { AmpAuditContext, AmpContextIndex, writeAmpContext } from "../../src/amp/context-writer.js"
+import { writeAmpContext } from "../../src/amp/context-writer.js"
 import { addThread } from "../../src/amp/thread-manager.js"
 
 describe("context-writer", () => {
@@ -38,6 +38,8 @@ describe("context-writer", () => {
     }
   ]
 
+  // TODO: This test needs to handle actually dynamic schemaVersion because
+  // in its current state it enforces 0.1.0 always, else failure.
   it.scoped("should write index.json with dynamic schemaVersion", () =>
     Effect.gen(function*() {
       const fs = yield* FileSystem.FileSystem
@@ -222,7 +224,7 @@ describe("context-writer", () => {
       expect(index.files.threads).toBeUndefined()
     }).pipe(Effect.provide(NodeContext.layer)))
 
-  describe("Phase 3 - Schema Version Contract Tests", () => {
+  describe("schema version and revision contract tests", () => {
     it.scoped("audit.json should include schemaVersion field from SCHEMA_VERSIONS.audit", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
@@ -339,7 +341,8 @@ describe("context-writer", () => {
         expect(index.versions?.audit).toBe("0.1.0")
       }).pipe(Effect.provide(NodeContext.layer)))
 
-    it.scoped("revision should handle legacy audit files without revision field", () =>
+    // TODO: make the test match the description; we do NOT want legacy compatibility
+    it.scoped("schema should not handle audit files without revision field", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path

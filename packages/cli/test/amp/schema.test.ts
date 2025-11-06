@@ -1,7 +1,6 @@
-import { SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
+import { AmpAuditContext, AmpContextIndex, SCHEMA_VERSIONS } from "@effect-migrate/core/schema"
 import { describe, expect, it } from "@effect/vitest"
 import * as Schema from "effect/Schema"
-import { AmpAuditContext, AmpContextIndex } from "../../src/amp/context-writer.js"
 
 describe("Schema Version Registry", () => {
   it("SCHEMA_VERSIONS is immutable", () => {
@@ -29,7 +28,7 @@ describe("Schema Version Registry", () => {
     }
 
     const result = Schema.decodeUnknownSync(AmpContextIndex)(validIndex)
-    expect(result.versions.audit).toBe("0.1.0")
+    expect(result.versions?.audit).toBe("0.1.0")
   })
 
   it("audit schema accepts schemaVersion and revision", () => {

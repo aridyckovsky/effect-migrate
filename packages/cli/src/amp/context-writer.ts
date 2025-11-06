@@ -40,7 +40,14 @@
  */
 
 import type { Config, RuleResult } from "@effect-migrate/core"
-import { SCHEMA_VERSIONS, Semver } from "@effect-migrate/core/schema"
+import {
+  AmpAuditContext,
+  type AmpAuditContext as AmpAuditContextType,
+  AmpContextIndex,
+  type AmpContextIndex as AmpContextIndexType,
+  SCHEMA_VERSIONS,
+  type ThreadReference as ThreadReferenceType
+} from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -49,188 +56,6 @@ import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { readThreads, type ThreadEntry, type ThreadsFile } from "./thread-manager.js"
-
-/**
- * Thread reference schema for tracking Amp threads where migration work occurred.
- *
- * @category Schema
- * @since 0.1.0
- * @planned Will be populated by `effect-migrate thread add` command
- */
-/**
- * Rule result schema matching RuleResult from @effect-migrate/core.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const RuleResultSchema = Schema.Struct({
-  /** Unique rule identifier */
-  id: Schema.String,
-  /** Rule type (pattern, boundary, etc.) */
-  ruleKind: Schema.String,
-  /** Severity level */
-  severity: Schema.Literal("error", "warning", "info"),
-  /** Human-readable message */
-  message: Schema.String,
-  /** File path where violation occurred */
-  file: Schema.optional(Schema.String),
-  /** Line and column range */
-  range: Schema.optional(Schema.Struct({
-    start: Schema.Struct({
-      line: Schema.Number,
-      column: Schema.Number
-    }),
-    end: Schema.Struct({
-      line: Schema.Number,
-      column: Schema.Number
-    })
-  })),
-  /** Documentation URL */
-  docsUrl: Schema.optional(Schema.String),
-  /** Rule tags */
-  tags: Schema.optional(Schema.Array(Schema.String))
-})
-
-export const ThreadReference = Schema.Struct({
-  /** Thread URL in format: https://ampcode.com/threads/T-{uuid} */
-  url: Schema.String.pipe(
-    Schema.pattern(/^https:\/\/ampcode\.com\/threads\/T-[a-f0-9-]+$/)
-  ),
-  /** ISO timestamp when thread was created or linked */
-  timestamp: Schema.DateTimeUtc,
-  /** User-provided description of work done in this thread */
-  description: Schema.optional(Schema.String),
-  /** Files modified in this thread */
-  filesChanged: Schema.optional(Schema.Array(Schema.String)),
-  /** Rule IDs resolved or addressed in this thread */
-  rulesResolved: Schema.optional(Schema.Array(Schema.String)),
-  /** Tags for categorizing threads */
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Scope filter for grouping threads */
-  scope: Schema.optional(Schema.Array(Schema.String))
-})
-
-/**
- * Summary statistics for migration findings.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const FindingsSummary = Schema.Struct({
-  /** Number of error-severity findings */
-  errors: Schema.Number,
-  /** Number of warning-severity findings */
-  warnings: Schema.Number,
-  /** Total number of files with findings */
-  totalFiles: Schema.Number,
-  /** Total number of findings across all files */
-  totalFindings: Schema.Number
-})
-
-/**
- * Configuration snapshot included in context output.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const ConfigSnapshot = Schema.Struct({
-  /** Rule IDs that produced findings */
-  rulesEnabled: Schema.Array(Schema.String),
-  /** Severity levels that cause audit failure */
-  failOn: Schema.Array(Schema.String)
-})
-
-/**
- * Grouped findings by file and by rule.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const FindingsGroup = Schema.Struct({
-  /** Findings grouped by file path (relative to project root, POSIX-style) */
-  byFile: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
-  /** Findings grouped by rule ID */
-  byRule: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
-  /** Summary statistics */
-  summary: FindingsSummary
-})
-
-/**
- * Complete audit context schema.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const AmpAuditContext = Schema.Struct({
-  /** Version of audit.json format */
-  schemaVersion: Semver,
-  /** Audit revision number (incremented on each write) */
-  revision: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(1)
-  ),
-  /** effect-migrate tool version */
-  toolVersion: Schema.String,
-  /** Project root directory (relative, defaults to ".") */
-  projectRoot: Schema.String,
-  /** ISO timestamp when context was generated */
-  timestamp: Schema.DateTimeUtc,
-  /** Grouped findings */
-  findings: FindingsGroup,
-  /** Config snapshot */
-  config: ConfigSnapshot,
-  /** Thread references (future feature) */
-  threads: Schema.optional(Schema.Array(ThreadReference))
-})
-
-/**
- * Index schema that points to other context files.
- *
- * @category Schema
- * @since 0.1.0
- */
-export const AmpContextIndex = Schema.Struct({
-  /** Version of index.json format itself */
-  schemaVersion: Semver,
-  /** Schema versions for generated artifacts */
-  versions: Schema.optional(
-    Schema.Struct({
-      /** audit.json format version */
-      audit: Semver,
-      /** metrics.json format version */
-      metrics: Schema.optional(Semver),
-      /** threads.json format version */
-      threads: Schema.optional(Semver)
-    })
-  ),
-  /** effect-migrate tool version */
-  toolVersion: Schema.String,
-  /** Project root directory (relative, defaults to ".") */
-  projectRoot: Schema.String,
-  /** ISO timestamp when index was generated */
-  timestamp: Schema.DateTimeUtc,
-  /** Relative paths to context files */
-  files: Schema.Struct({
-    /** Path to audit.json */
-    audit: Schema.String,
-    /** Path to metrics.json (future) */
-    metrics: Schema.optional(Schema.String),
-    /** Path to badges.md */
-    badges: Schema.optional(Schema.String),
-    /** Path to threads.json (present when threads exist) */
-    threads: Schema.optional(Schema.String)
-  })
-})
-
-/**
- * Extract TypeScript types from schemas.
- *
- * @category Types
- * @since 0.1.0
- */
-export type AmpAuditContext = Schema.Schema.Type<typeof AmpAuditContext>
-export type AmpContextIndex = Schema.Schema.Type<typeof AmpContextIndex>
-export type ThreadReference = Schema.Schema.Type<typeof ThreadReference>
 
 /**
  * Transform ThreadEntry to ThreadReference format.
@@ -257,7 +82,7 @@ export type ThreadReference = Schema.Schema.Type<typeof ThreadReference>
  * @category Pure Function
  * @since 0.2.0
  */
-const threadEntryToReference = (entry: ThreadEntry): ThreadReference => ({
+const threadEntryToReference = (entry: ThreadEntry): ThreadReferenceType => ({
   url: entry.url,
   timestamp: entry.createdAt,
   ...(entry.description && { description: entry.description }),
@@ -283,7 +108,7 @@ const threadEntryToReference = (entry: ThreadEntry): ThreadReference => ({
  * const auditThreads = toAuditThreads(threadsFile)
  * ```
  */
-export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadReference> => {
+export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadReferenceType> => {
   return threadsFile.threads.map(threadEntryToReference)
 }
 
@@ -311,6 +136,9 @@ export interface PackageMeta {
 }
 
 /**
+ * TODO: This should fall back to something below our current working schema
+ * insead of something a major version ahead.
+ *
  * Get package metadata from package.json.
  *
  * Reads both version and schemaVersion from package.json at runtime.
@@ -480,7 +308,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const auditThreads = toAuditThreads(threadsFile)
 
     // Create audit context (validated by schema) with conditional threads
-    const auditContext: AmpAuditContext = {
+    const auditContext: AmpAuditContextType = {
       schemaVersion: SCHEMA_VERSIONS.audit,
       revision,
       toolVersion,
@@ -512,7 +340,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     yield* fs.writeFileString(auditPath, JSON.stringify(auditJson, null, 2))
 
     // Create index (validated by schema)
-    const index: AmpContextIndex = {
+    const index: AmpContextIndexType = {
       schemaVersion: SCHEMA_VERSIONS.index,
       versions: {
         audit: SCHEMA_VERSIONS.audit
