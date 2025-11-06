@@ -15,6 +15,10 @@
     ".": {
       "types": "./build/esm/index.d.ts",
       "import": "./build/esm/index.js"
+    },
+    "./schema": {
+      "types": "./build/esm/schema/index.d.ts",
+      "import": "./build/esm/schema/index.js"
     }
   },
   "sideEffects": [],
