@@ -148,6 +148,43 @@ export const FindingsGroup = Schema.Struct({
  *
  * @category Schema
  * @since 0.1.0
+ *
+ * @example
+ * ```json
+ * {
+ *   "schemaVersion": "0.1.0",
+ *   "revision": 1,
+ *   "toolVersion": "0.2.0",
+ *   "projectRoot": ".",
+ *   "timestamp": "2025-11-06T12:00:00.000Z",
+ *   "findings": {
+ *     "byFile": {
+ *       "src/index.ts": [
+ *         {
+ *           "id": "no-async-await",
+ *           "severity": "error",
+ *           "message": "Avoid async/await",
+ *           "file": "src/index.ts",
+ *           "ruleKind": "pattern"
+ *         }
+ *       ]
+ *     },
+ *     "byRule": {
+ *       "no-async-await": [...]
+ *     },
+ *     "summary": {
+ *       "errors": 1,
+ *       "warnings": 0,
+ *       "totalFiles": 1,
+ *       "totalFindings": 1
+ *     }
+ *   },
+ *   "config": {
+ *     "rulesEnabled": ["no-async-await"],
+ *     "failOn": ["error"]
+ *   }
+ * }
+ * ```
  */
 export const AmpAuditContext = Schema.Struct({
   /** Version of audit.json format */
@@ -180,6 +217,21 @@ export const AmpAuditContext = Schema.Struct({
  *
  * @category Schema
  * @since 0.1.0
+ *
+ * @example
+ * ```json
+ * {
+ *   "schemaVersion": "0.1.0",
+ *   "toolVersion": "0.2.0",
+ *   "projectRoot": ".",
+ *   "timestamp": "2025-11-06T12:00:00.000Z",
+ *   "files": {
+ *     "audit": "audit.json",
+ *     "badges": "badges.md",
+ *     "threads": "threads.json"
+ *   }
+ * }
+ * ```
  */
 export const AmpContextIndex = Schema.Struct({
   /** Schema version for all artifacts (single unified version) */
