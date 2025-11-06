@@ -11,6 +11,7 @@
 
 import type { Rule, RuleResult } from "@effect-migrate/core"
 import * as Effect from "effect/Effect"
+import { findMatchingBrace } from "./helpers.js"
 
 /**
  * Detects async/await patterns in JavaScript/TypeScript code.
@@ -371,20 +372,34 @@ export const noUnhandledEffect: Rule = {
 
       for (const file of files) {
         const content = yield* ctx.readFile(file)
-        // Detect Effect.* calls not preceded by yield*, return, or assignment
-        const pattern = /^\s+Effect\.\w+\(/gm
+        const lines = content.split("\n")
 
-        let match: RegExpExecArray | null
-        while ((match = pattern.exec(content)) !== null) {
-          const index = match.index
-          const beforeMatch = content.substring(0, index)
-          const line = beforeMatch.split("\n").length
-          const column = index - beforeMatch.lastIndexOf("\n")
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
 
-          // Check if this line has yield*, return, or =
-          const lines = content.split("\n")
-          const currentLine = lines[line - 1]
-          if (!/yield\*|return|=|const|let|var/.test(currentLine)) {
+          // Check for Effect.* calls on this line (not in comments)
+          const effectCallPattern = /Effect\.\w+\(/g
+          let match: RegExpExecArray | null
+
+          while ((match = effectCallPattern.exec(line)) !== null) {
+            const beforeEffect = line.substring(0, match.index).trim()
+
+            // Skip if preceded by yield*, return, or assignment operators
+            if (/yield\*\s*$|return\s*$|=\s*$|const\s+\w+\s*=$|let\s+\w+\s*=$|var\s+\w+\s*=$/.test(beforeEffect)) {
+              continue
+            }
+
+            // Skip comments
+            if (/\/\//.test(beforeEffect)) {
+              continue
+            }
+
+            // Skip Effect.gen calls (they define effects, not execute them)
+            if (match[0].startsWith("Effect.gen(")) {
+              continue
+            }
+
+            // Found unhandled Effect call
             results.push({
               id: "no-unhandled-effect",
               ruleKind: "pattern",
@@ -392,8 +407,8 @@ export const noUnhandledEffect: Rule = {
               severity: "error",
               file,
               range: {
-                start: { line, column },
-                end: { line, column: column + match[0].length }
+                start: { line: i + 1, column: match.index + 1 },
+                end: { line: i + 1, column: match.index + match[0].length + 1 }
               },
               tags: ["effect", "correctness"]
             })
@@ -588,8 +603,8 @@ export const noEffectCatchAllSuccess: Rule = {
 
       for (const file of files) {
         const content = yield* ctx.readFile(file)
-        // Detect catchAll with Effect.succeed
-        const pattern = /catchAll\([^)]*Effect\.succeed/g
+        // Detect catchAll with Effect.succeed (using dotall to match across lines)
+        const pattern = /catchAll\(\s*\([^)]*\)\s*=>\s*Effect\.succeed/gs
 
         let match: RegExpExecArray | null
         while ((match = pattern.exec(content)) !== null) {
@@ -701,20 +716,6 @@ export const noEffectGenTryCatch: Rule = {
       return results
     })
 }
-
-// Helper function to find matching brace
-function findMatchingBrace(text: string, startPos: number): number {
-  let depth = 0
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === "{") depth++
-    if (text[i] === "}") {
-      depth--
-      if (depth === 0) return startPos + i
-    }
-  }
-  return startPos + text.length
-}
-
 /**
  * Suggests using Data.TaggedError over plain Error.
  *
@@ -833,7 +834,7 @@ export const noMixedPromiseEffect: Rule = {
           const genBlock = content.substring(genStart, genEnd)
 
           // Check for Promise patterns (but not Effect.promise/tryPromise)
-          const promisePattern = /\b(await|\.then\(|new Promise)/g
+          const promisePattern = /\b(await|new Promise)|\.then\(/g
           let promiseMatch: RegExpExecArray | null
 
           while ((promiseMatch = promisePattern.exec(genBlock)) !== null) {

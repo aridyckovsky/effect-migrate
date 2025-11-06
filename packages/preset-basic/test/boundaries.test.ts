@@ -1,13 +1,18 @@
 /**
  * Tests for boundary rules.
  *
- * @module @effect-migrate/preset-basic/__tests__/boundaries
+ * @module @effect-migrate/preset-basic/test/boundaries
  */
 
 import type { RuleContext } from "@effect-migrate/core"
 import { expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
-import { noFsPromises, noNodeInServices, noNodePath, noPlatformNodeInCore } from "../boundaries.js"
+import {
+  noFsPromises,
+  noNodeInServices,
+  noNodePath,
+  noPlatformNodeInCore
+} from "../src/boundaries.js"
 
 // Extract imports from file content (simple parsing for tests)
 const extractImports = (content: string): string[] => {

@@ -1,13 +1,13 @@
 /**
  * Tests for config merging functionality.
  *
- * @module @effect-migrate/cli/loaders/__tests__/config
+ * @module @effect-migrate/cli/test/loaders/config
  */
 
 import type { Config } from "@effect-migrate/core"
 import { expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
-import { mergeConfig } from "../config.js"
+import { mergeConfig } from "../../src/loaders/config.js"
 
 it.effect("should use user config when no defaults provided", () =>
   Effect.gen(function*() {

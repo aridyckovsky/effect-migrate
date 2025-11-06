@@ -1,13 +1,13 @@
 /**
  * Tests for preset loading functionality.
  *
- * @module @effect-migrate/cli/loaders/__tests__/presets
+ * @module @effect-migrate/cli/test/loaders/presets
  */
 
 import type { Preset } from "@effect-migrate/core"
 import { expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
-import { loadPresets, mergeDefaults, PresetLoadError } from "../presets.js"
+import { loadPresets, mergeDefaults, PresetLoadError } from "../../src/loaders/presets.js"
 
 // Mock presets for testing
 const mockPresetWithDefaultExport: Preset = {
