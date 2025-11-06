@@ -34,7 +34,7 @@ import { makeBoundaryRule } from "@effect-migrate/core"
  */
 export const noNodeInServices = makeBoundaryRule({
   id: "no-node-in-services",
-  from: "src/services/**/*.ts",
+  from: "**/services/**/*.ts",
   disallow: ["node:*"],
   message: "Don't import Node.js built-ins in service layer. Use @effect/platform instead.",
   severity: "error",
@@ -65,7 +65,7 @@ export const noNodeInServices = makeBoundaryRule({
  */
 export const noPlatformNodeInCore = makeBoundaryRule({
   id: "no-platform-node-in-core",
-  from: "src/core/**/*.ts",
+  from: "**/core/**/*.ts",
   disallow: ["@effect/platform-node*"],
   message: "Core modules should use @effect/platform, not @effect/platform-node",
   severity: "error",
@@ -97,7 +97,7 @@ export const noPlatformNodeInCore = makeBoundaryRule({
  */
 export const noFsPromises = makeBoundaryRule({
   id: "no-fs-promises",
-  from: "src/**/*.ts",
+  from: "**/*.ts",
   disallow: ["fs/promises", "node:fs/promises", "node:fs"],
   message: "Use @effect/platform FileSystem service instead of fs/promises",
   severity: "warning",
@@ -129,7 +129,7 @@ export const noFsPromises = makeBoundaryRule({
  */
 export const noNodePath = makeBoundaryRule({
   id: "no-node-path",
-  from: "src/**/*.ts",
+  from: "**/*.ts",
   disallow: ["path", "node:path"],
   message: "Use @effect/platform Path service instead of node:path",
   severity: "warning",
