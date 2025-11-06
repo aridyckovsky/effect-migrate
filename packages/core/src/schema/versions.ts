@@ -26,16 +26,16 @@
  */
 export const SCHEMA_VERSIONS = {
   /** index.json format version */
-  index: "1.1.0",
+  index: "0.1.0",
 
-  /** audit.json format version (v2 = normalized schema) */
-  audit: "2.0.0",
+  /** audit.json format version */
+  audit: "0.1.0",
 
   /** metrics.json format version */
   metrics: "0.1.0",
 
   /** threads.json format version */
-  threads: "1.0.0"
+  threads: "0.1.0"
 } as const
 
 /**
