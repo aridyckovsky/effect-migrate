@@ -26,6 +26,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.29.7
         version: 2.29.7(@types/node@24.10.0)
+      '@effect-migrate/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@effect/build-utils':
         specifier: ^0.8.9
         version: 0.8.9

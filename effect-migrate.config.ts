@@ -1,4 +1,4 @@
-import type { Config } from "@effect-migrate/core"
+import { defineConfig } from "@effect-migrate/core"
 
 /**
  * effect-migrate configuration
@@ -18,7 +18,7 @@ import type { Config } from "@effect-migrate/core"
  * due to workspace resolution. This is expected and the CLI handles it gracefully.
  * When published to npm, preset loading works correctly.
  */
-export default {
+export default defineConfig({
   version: 1,
 
   // Preset loading:
@@ -102,4 +102,4 @@ export default {
 
   // Performance: number of concurrent file operations
   concurrency: 4
-} satisfies Config
+})
