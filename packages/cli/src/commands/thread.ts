@@ -31,6 +31,7 @@
  * @since 0.2.0
  */
 
+import { addThread, readThreads, updateIndexWithThreads } from "@effect-migrate/core/amp"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import chalk from "chalk"
@@ -38,9 +39,7 @@ import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import { ampOutOption } from "../amp/constants.js"
-import { updateIndexWithThreads } from "../amp/context-writer.js"
-import { addThread, readThreads } from "../amp/thread-manager.js"
+import { ampOutOption } from "../amp/options.js"
 
 /**
  * Schema for parsing comma-separated strings into unique, sorted arrays.

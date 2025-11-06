@@ -29,11 +29,11 @@
  */
 
 import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
+import { writeMetricsContext } from "@effect-migrate/core/amp"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
-import { writeMetricsContext } from "../amp/metrics-writer.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
 
