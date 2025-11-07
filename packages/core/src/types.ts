@@ -13,11 +13,12 @@
  *
  * - `error`: Critical issues that must be fixed
  * - `warning`: Issues that should be addressed but aren't blocking
+ * - `info`: Informational hints or suggestions
  *
  * @category Core
  * @since 0.1.0
  */
-export type Severity = "error" | "warning"
+export type Severity = "error" | "warning" | "info"
 
 /**
  * Location information for a finding within a file.
