@@ -926,8 +926,8 @@ describe("normalizeResults", () => {
 
       // Scenario 2: Same rule at index 2, same file at index 3 (other rules/files added)
       const rules2 = [
-        { id: "other-rule-1", kind: "pattern", severity: "error" as const, message: "Other" },
-        { id: "other-rule-2", kind: "pattern", severity: "error" as const, message: "Other" },
+        makeRuleDef("other-rule-1", "pattern", "error", "Other"),
+        makeRuleDef("other-rule-2", "pattern", "error", "Other"),
         makeRuleDef("my-rule", "pattern", "error", "Error")
       ]
       const files2 = ["other-file-1.ts", "other-file-2.ts", "other-file-3.ts", "my-file.ts"]
@@ -1180,7 +1180,11 @@ describe("normalizeResults", () => {
           { rule: 1, file: 0, range: [2, 1, 2, 10] as [number, number, number, number] },
           { rule: 0, file: 1, range: [3, 1, 3, 10] as [number, number, number, number] }
         ],
-        summary: { errors: 2, warnings: 1, info: 0, totalFiles: 2, totalFindings: 3 }
+        summary: { errors: 2, warnings: 1, info: 0, totalFiles: 2, totalFindings: 3 },
+        groups: {
+          byFile: {},
+          byRule: {}
+        }
       }
 
       const groups = rebuildGroups(findings)
@@ -1202,7 +1206,11 @@ describe("normalizeResults", () => {
           { rule: 0 },
           { rule: 0 }
         ],
-        summary: { errors: 0, warnings: 0, info: 3, totalFiles: 0, totalFindings: 3 }
+        summary: { errors: 0, warnings: 0, info: 3, totalFiles: 0, totalFindings: 3 },
+        groups: {
+          byFile: {},
+          byRule: {}
+        }
       }
 
       const groups = rebuildGroups(findings)
@@ -1223,7 +1231,11 @@ describe("normalizeResults", () => {
           { rule: 1 },
           { rule: 0, file: 0, range: [2, 1, 2, 10] as [number, number, number, number] }
         ],
-        summary: { errors: 2, warnings: 0, info: 1, totalFiles: 1, totalFindings: 3 }
+        summary: { errors: 2, warnings: 0, info: 1, totalFiles: 1, totalFindings: 3 },
+        groups: {
+          byFile: {},
+          byRule: {}
+        }
       }
 
       const groups = rebuildGroups(findings)
