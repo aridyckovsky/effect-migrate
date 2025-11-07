@@ -36,7 +36,7 @@
  * ```
  *
  * @see {@link https://github.com/aridyckovsky/effect-migrate#amp-integration | Amp Integration Guide}
- * @module @effect-migrate/cli/amp
+ * @module @effect-migrate/core/amp
  */
 
 import * as FileSystem from "@effect/platform/FileSystem"
@@ -246,7 +246,7 @@ const getNextAuditRevision = (outputDir: string) =>
  *
  * @example
  * ```typescript
- * import { writeAmpContext } from "@effect-migrate/cli/amp"
+ * import { writeAmpContext } from "@effect-migrate/core/amp"
  *
  * const program = Effect.gen(function* () {
  *   const results = yield* runAudit()

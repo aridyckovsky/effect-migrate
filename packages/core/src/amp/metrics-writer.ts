@@ -4,7 +4,7 @@
  * Generates metrics.json with migration progress tracking and per-rule breakdown.
  * Complements audit.json with time-series metrics for tracking migration velocity.
  *
- * @module @effect-migrate/cli/amp/metrics-writer
+ * @module @effect-migrate/core/amp/metrics-writer
  * @since 0.2.0
  */
 

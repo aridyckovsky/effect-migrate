@@ -16,3 +16,4 @@ export {
   rebuildGroups
 } from "./normalizer.js"
 export { addThread, readThreads, validateThreadUrl } from "./thread-manager.js"
+export type { ThreadsFile } from "./thread-manager.js"

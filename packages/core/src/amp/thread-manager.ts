@@ -5,7 +5,7 @@
  * contain migration-related work. It provides validation, deduplication,
  * and merging of thread metadata (tags, scope, description).
  *
- * @module @effect-migrate/cli/amp/thread-manager
+ * @module @effect-migrate/core/amp/thread-manager
  * @since 0.2.0
  */
 
