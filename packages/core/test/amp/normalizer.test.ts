@@ -12,7 +12,25 @@ import {
   normalizeResults,
   rebuildGroups
 } from "../../src/amp/normalizer.js"
+import type { RuleKind } from "../../src/rules/types.js"
 import type { RuleResult } from "../../src/rules/types.js"
+import type { Severity } from "../../src/types.js"
+
+// Helper to create properly typed RuleDef for tests
+const makeRuleDef = (
+  id: string,
+  kind: RuleKind,
+  severity: Severity,
+  message: string,
+  options?: { docsUrl?: string; tags?: readonly string[] }
+) => ({
+  id,
+  kind,
+  severity,
+  message,
+  ...(options?.docsUrl !== undefined && { docsUrl: options.docsUrl }),
+  ...(options?.tags !== undefined && { tags: options.tags })
+})
 
 describe("normalizeResults", () => {
   describe("deterministic ordering", () => {
@@ -434,13 +452,9 @@ describe("normalizeResults", () => {
   describe("expandResult correctness", () => {
     it("reconstructs full RuleResult from CompactResult", () => {
       const rules = [
-        {
-          id: "no-async",
-          kind: "pattern",
-          severity: "warning" as const,
-          message: "Replace async/await",
+        makeRuleDef("no-async", "pattern", "warning", "Replace async/await", {
           docsUrl: "https://effect.website"
-        }
+        })
       ]
       const files = ["file1.ts"]
       const compact = {
@@ -464,12 +478,7 @@ describe("normalizeResults", () => {
 
     it("handles info severity correctly", () => {
       const rules = [
-        {
-          id: "migration-hint",
-          kind: "pattern",
-          severity: "info" as const,
-          message: "Consider using Effect pattern here"
-        }
+        makeRuleDef("migration-hint", "pattern", "info", "Consider using Effect pattern here")
       ]
       const files = ["file1.ts"]
       const compact = {
@@ -492,14 +501,7 @@ describe("normalizeResults", () => {
     })
 
     it("handles range tuple → range object conversion", () => {
-      const rules = [
-        {
-          id: "rule1",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Test message"
-        }
-      ]
+      const rules = [makeRuleDef("rule1", "pattern", "error", "Test message")]
       const compact = {
         rule: 0,
         range: [15, 3, 18, 25] as [number, number, number, number]
@@ -514,14 +516,7 @@ describe("normalizeResults", () => {
     })
 
     it("uses message override when present", () => {
-      const rules = [
-        {
-          id: "rule1",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Template message"
-        }
-      ]
+      const rules = [makeRuleDef("rule1", "pattern", "error", "Template message")]
       const compact = {
         rule: 0,
         message: "Custom message override"
@@ -534,14 +529,10 @@ describe("normalizeResults", () => {
 
     it("preserves docsUrl and tags from RuleDef", () => {
       const rules = [
-        {
-          id: "rule1",
-          kind: "pattern",
-          severity: "warning" as const,
-          message: "Test message",
+        makeRuleDef("rule1", "pattern", "warning", "Test message", {
           docsUrl: "https://docs.example.com/rule1",
           tags: ["migration", "async"]
-        }
+        })
       ]
       const compact = {
         rule: 0,
@@ -780,12 +771,7 @@ describe("normalizeResults", () => {
   describe("deriveResultKey", () => {
     it("generates correct key format with all components", () => {
       const rules = [
-        {
-          id: "no-async-await",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Use Effect.gen instead of async/await"
-        }
+        makeRuleDef("no-async-await", "pattern", "error", "Use Effect.gen instead of async/await")
       ]
       const files = ["src/index.ts"]
       const result = {
@@ -802,14 +788,7 @@ describe("normalizeResults", () => {
     })
 
     it("handles result without file (empty filePath)", () => {
-      const rules = [
-        {
-          id: "global-docs-rule",
-          kind: "docs",
-          severity: "warning" as const,
-          message: "Missing documentation"
-        }
-      ]
+      const rules = [makeRuleDef("global-docs-rule", "docs", "warning", "Missing documentation")]
       const files: string[] = []
       const result = {
         rule: 0,
@@ -823,12 +802,7 @@ describe("normalizeResults", () => {
 
     it("handles result without range (empty rangeStr)", () => {
       const rules = [
-        {
-          id: "file-level-rule",
-          kind: "boundary",
-          severity: "error" as const,
-          message: "Disallowed import"
-        }
+        makeRuleDef("file-level-rule", "boundary", "error", "Disallowed import")
       ]
       const files = ["src/utils.ts"]
       const result = {
@@ -842,14 +816,7 @@ describe("normalizeResults", () => {
     })
 
     it("handles result with message override", () => {
-      const rules = [
-        {
-          id: "rule1",
-          kind: "pattern",
-          severity: "warning" as const,
-          message: "Template message"
-        }
-      ]
+      const rules = [makeRuleDef("rule1", "pattern", "warning", "Template message")]
       const files = ["src/index.ts"]
       const result = {
         rule: 0,
@@ -865,12 +832,7 @@ describe("normalizeResults", () => {
 
     it("handles result with no file and no range (minimal result)", () => {
       const rules = [
-        {
-          id: "minimal-rule",
-          kind: "metrics",
-          severity: "info" as const,
-          message: "Metric collected"
-        }
+        makeRuleDef("minimal-rule", "metrics", "info", "Metric collected")
       ]
       const files: string[] = []
       const result = {
@@ -884,12 +846,7 @@ describe("normalizeResults", () => {
 
     it("generates deterministic keys for identical results", () => {
       const rules = [
-        {
-          id: "rule-a",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Error message"
-        }
+        makeRuleDef("rule-a", "pattern", "error", "Error message")
       ]
       const files = ["file.ts"]
       const result = {
@@ -908,18 +865,8 @@ describe("normalizeResults", () => {
 
     it("generates different keys for results with different ruleIds", () => {
       const rules = [
-        {
-          id: "rule-a",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Message"
-        },
-        {
-          id: "rule-b",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Message"
-        }
+        makeRuleDef("rule-a", "pattern", "error", "Message"),
+        makeRuleDef("rule-b", "pattern", "error", "Message")
       ]
       const files = ["file.ts"]
       const result1 = {
@@ -943,12 +890,7 @@ describe("normalizeResults", () => {
 
     it("generates different keys for results at different locations", () => {
       const rules = [
-        {
-          id: "same-rule",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Same message"
-        }
+        makeRuleDef("same-rule", "pattern", "error", "Same message")
       ]
       const files = ["file.ts"]
       const result1 = {
@@ -973,12 +915,7 @@ describe("normalizeResults", () => {
     it("keys remain stable when rule/file indices change", () => {
       // Scenario 1: Rule at index 0, file at index 0
       const rules1 = [
-        {
-          id: "my-rule",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Error"
-        }
+        makeRuleDef("my-rule", "pattern", "error", "Error")
       ]
       const files1 = ["my-file.ts"]
       const result1 = {
@@ -991,12 +928,7 @@ describe("normalizeResults", () => {
       const rules2 = [
         { id: "other-rule-1", kind: "pattern", severity: "error" as const, message: "Other" },
         { id: "other-rule-2", kind: "pattern", severity: "error" as const, message: "Other" },
-        {
-          id: "my-rule",
-          kind: "pattern",
-          severity: "error" as const,
-          message: "Error"
-        }
+        makeRuleDef("my-rule", "pattern", "error", "Error")
       ]
       const files2 = ["other-file-1.ts", "other-file-2.ts", "other-file-3.ts", "my-file.ts"]
       const result2 = {
@@ -1018,18 +950,8 @@ describe("normalizeResults", () => {
     it("returns Map<number, string> with correct indices", () => {
       const findings = {
         rules: [
-          {
-            id: "rule1",
-            kind: "pattern",
-            severity: "error" as const,
-            message: "Msg1"
-          },
-          {
-            id: "rule2",
-            kind: "pattern",
-            severity: "warning" as const,
-            message: "Msg2"
-          }
+          makeRuleDef("rule1", "pattern", "error", "Msg1"),
+          makeRuleDef("rule2", "pattern", "warning", "Msg2")
         ],
         files: ["file1.ts", "file2.ts"],
         results: [
@@ -1068,12 +990,7 @@ describe("normalizeResults", () => {
     it("all keys are unique within a checkpoint", () => {
       const findings = {
         rules: [
-          {
-            id: "rule1",
-            kind: "pattern",
-            severity: "error" as const,
-            message: "Error"
-          }
+          makeRuleDef("rule1", "pattern", "error", "Error")
         ],
         files: ["file1.ts", "file2.ts"],
         results: [
@@ -1227,12 +1144,7 @@ describe("normalizeResults", () => {
     it("handles FindingsGroup with message overrides", () => {
       const findings = {
         rules: [
-          {
-            id: "rule1",
-            kind: "pattern",
-            severity: "error" as const,
-            message: "Template message"
-          }
+          makeRuleDef("rule1", "pattern", "error", "Template message")
         ],
         files: ["file1.ts"],
         results: [

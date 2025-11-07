@@ -207,20 +207,17 @@ export const FindingsGroup = Schema.Struct({
   /** Compact results array */
   results: Schema.Array(CompactResult),
   /**
-   * Groupings by file and rule (optional for future space optimization).
+   * Groupings by file and rule for O(1) lookup performance.
    *
-   * Currently always emitted by normalizeResults() for O(1) lookup performance.
-   * May be omitted in future versions to save ~5-10% additional space.
-   * Use rebuildGroups() to reconstruct if missing.
+   * Always emitted by normalizeResults(). Can be reconstructed from results
+   * using rebuildGroups() if needed for custom serialization.
    */
-  groups: Schema.optional(
-    Schema.Struct({
-      /** Result indices grouped by file path */
-      byFile: Schema.Record({ key: Schema.String, value: Schema.Array(Schema.Number) }),
-      /** Result indices grouped by rule ID */
-      byRule: Schema.Record({ key: Schema.String, value: Schema.Array(Schema.Number) })
-    })
-  ),
+  groups: Schema.Struct({
+    /** Result indices grouped by file path */
+    byFile: Schema.Record({ key: Schema.String, value: Schema.Array(Schema.Number) }),
+    /** Result indices grouped by rule ID */
+    byRule: Schema.Record({ key: Schema.String, value: Schema.Array(Schema.Number) })
+  }),
   /** Summary statistics */
   summary: FindingsSummary
 })
