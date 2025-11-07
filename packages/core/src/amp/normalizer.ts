@@ -121,6 +121,7 @@ export const normalizeResults = (results: readonly RuleResult[]): FindingsGroup 
   const compact: CompactResult[] = []
   let errors = 0
   let warnings = 0
+  let info = 0
 
   for (const r of results) {
     // Deduplicate rule metadata
@@ -167,9 +168,10 @@ export const normalizeResults = (results: readonly RuleResult[]): FindingsGroup 
 
     compact.push(cr)
 
-    // Count errors and warnings
+    // Count errors, warnings, and info
     if (r.severity === "error") errors++
-    else warnings++
+    else if (r.severity === "warning") warnings++
+    else info++
   }
 
   // Create old index to ID/path maps before sorting
@@ -212,7 +214,7 @@ export const normalizeResults = (results: readonly RuleResult[]): FindingsGroup 
     files,
     results: remappedResults,
     groups: { byFile, byRule },
-    summary: { errors, warnings, totalFiles: files.length, totalFindings: remappedResults.length }
+    summary: { errors, warnings, info, totalFiles: files.length, totalFindings: remappedResults.length }
   }
 }
 

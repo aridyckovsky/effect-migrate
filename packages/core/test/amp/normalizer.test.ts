@@ -413,7 +413,7 @@ describe("normalizeResults", () => {
       expect(normalizedSize).toBeLessThan(legacySize)
     })
 
-    it("counts info severity as warnings in summary", () => {
+    it("counts info severity separately", () => {
       const results: RuleResult[] = [
         { id: "r1", ruleKind: "pattern", severity: "error", message: "E" },
         { id: "r2", ruleKind: "pattern", severity: "warning", message: "W" },
@@ -423,7 +423,8 @@ describe("normalizeResults", () => {
       const normalized = normalizeResults(results)
 
       expect(normalized.summary.errors).toBe(1)
-      expect(normalized.summary.warnings).toBe(2) // warning + info
+      expect(normalized.summary.warnings).toBe(1)
+      expect(normalized.summary.info).toBe(1)
       expect(normalized.summary.totalFindings).toBe(3)
     })
   })
@@ -1034,7 +1035,7 @@ describe("normalizeResults", () => {
           { rule: 0, file: 1 }
         ],
         groups: { byFile: {}, byRule: {} },
-        summary: { errors: 2, warnings: 1, totalFiles: 2, totalFindings: 3 }
+        summary: { errors: 2, warnings: 1, info: 0, totalFiles: 2, totalFindings: 3 }
       }
 
       const keyMap = deriveResultKeys(findings)
@@ -1052,7 +1053,7 @@ describe("normalizeResults", () => {
         files: [],
         results: [],
         groups: { byFile: {}, byRule: {} },
-        summary: { errors: 0, warnings: 0, totalFiles: 0, totalFindings: 0 }
+        summary: { errors: 0, warnings: 0, info: 0, totalFiles: 0, totalFindings: 0 }
       }
 
       const keyMap = deriveResultKeys(findings)
@@ -1078,7 +1079,7 @@ describe("normalizeResults", () => {
           { rule: 0, file: 0, range: [15, 3, 15, 18] as [number, number, number, number] }
         ],
         groups: { byFile: {}, byRule: {} },
-        summary: { errors: 3, warnings: 0, totalFiles: 2, totalFindings: 3 }
+        summary: { errors: 3, warnings: 0, info: 0, totalFiles: 2, totalFindings: 3 }
       }
 
       const keyMap = deriveResultKeys(findings)
@@ -1241,7 +1242,7 @@ describe("normalizeResults", () => {
           }
         ],
         groups: { byFile: {}, byRule: {} },
-        summary: { errors: 2, warnings: 0, totalFiles: 1, totalFindings: 2 }
+        summary: { errors: 2, warnings: 0, info: 0, totalFiles: 1, totalFindings: 2 }
       }
 
       const keyMap = deriveResultKeys(findings)
@@ -1264,7 +1265,7 @@ describe("normalizeResults", () => {
           { rule: 1, file: 0, range: [2, 1, 2, 10] as [number, number, number, number] },
           { rule: 0, file: 1, range: [3, 1, 3, 10] as [number, number, number, number] }
         ],
-        summary: { errors: 2, warnings: 1, totalFiles: 2, totalFindings: 3 }
+        summary: { errors: 2, warnings: 1, info: 0, totalFiles: 2, totalFindings: 3 }
       }
 
       const groups = rebuildGroups(findings)
@@ -1286,7 +1287,7 @@ describe("normalizeResults", () => {
           { rule: 0 },
           { rule: 0 }
         ],
-        summary: { errors: 0, warnings: 0, totalFiles: 0, totalFindings: 3 }
+        summary: { errors: 0, warnings: 0, info: 3, totalFiles: 0, totalFindings: 3 }
       }
 
       const groups = rebuildGroups(findings)
@@ -1307,7 +1308,7 @@ describe("normalizeResults", () => {
           { rule: 1 },
           { rule: 0, file: 0, range: [2, 1, 2, 10] as [number, number, number, number] }
         ],
-        summary: { errors: 2, warnings: 0, totalFiles: 1, totalFindings: 3 }
+        summary: { errors: 2, warnings: 0, info: 1, totalFiles: 1, totalFindings: 3 }
       }
 
       const groups = rebuildGroups(findings)

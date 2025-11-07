@@ -254,7 +254,7 @@ This creates structured context files with schema versioning:
 **`.amp/effect-migrate/index.json`** (entry point):
 ```json
 {
-  "schemaVersion": "0.1.0",
+  "schemaVersion": "0.2.0",
   "timestamp": "2025-01-03T10:00:00Z",
   "resources": {
     "audit": "./audit.json",
@@ -268,7 +268,7 @@ This creates structured context files with schema versioning:
 **`.amp/effect-migrate/audit.json`** (detailed findings):
 ```json
 {
-  "schemaVersion": "0.1.0",
+  "schemaVersion": "0.2.0",
   "revision": 1,
   "timestamp": "2025-01-03T10:00:00Z",
   "findings": [
@@ -369,7 +369,7 @@ I'm migrating src/api/fetchUser.ts to Effect.
 
 Amp will:
 
-- Load the index.json (schema version 0.1.0) which references all context files
+- Load the index.json (schema version 0.2.0) which references all context files
 - Read audit.json (with revision tracking) and metrics.json
 - Know which files are migrated vs. legacy
 - Suggest Effect patterns based on active rules
@@ -398,7 +398,7 @@ async function proposeNextSteps(cwd: string) {
 ```
 
 **Schema versioning benefits:**
-- All context files include `schemaVersion: "0.1.0"` for compatibility tracking
+- All context files include `schemaVersion: "0.2.0"` for compatibility tracking
 - `audit.json` includes a `revision` number that increments on each run
 - Amp can detect schema changes and handle migrations gracefully
 

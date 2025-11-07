@@ -85,10 +85,8 @@ export const ThreadReference = Schema.Struct({
  * Summary statistics for migration findings.
  *
  * Provides high-level metrics about the migration state, including counts of
- * errors, warnings, affected files, and total findings. Used for quick assessment
- * of migration progress and health.
- *
- * Note: `info` severity findings are counted as warnings in the summary.
+ * errors, warnings, info-level findings, affected files, and total findings.
+ * Used for quick assessment of migration progress and health.
  *
  * @category Schema
  * @since 0.1.0
@@ -98,6 +96,8 @@ export const FindingsSummary = Schema.Struct({
   errors: Schema.Number,
   /** Number of warning-severity findings */
   warnings: Schema.Number,
+  /** Number of info-severity findings */
+  info: Schema.Number,
   /** Total number of files with findings */
   totalFiles: Schema.Number,
   /** Total number of findings across all files */
@@ -271,6 +271,7 @@ export const FindingsGroup = Schema.Struct({
  *     "summary": {
  *       "errors": 1,
  *       "warnings": 0,
+ *       "info": 0,
  *       "totalFiles": 1,
  *       "totalFindings": 1
  *     }

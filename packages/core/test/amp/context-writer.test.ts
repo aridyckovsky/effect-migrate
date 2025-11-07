@@ -67,7 +67,7 @@ describe("context-writer", () => {
 
       // Should match SCHEMA_VERSION from core
       expect(index.schemaVersion).toBe(SCHEMA_VERSION)
-      expect(index.schemaVersion).toBe("0.1.0")
+      expect(index.schemaVersion).toBe("0.2.0")
 
       // Verify other required fields
       expect(index.toolVersion).toBeDefined()
@@ -183,7 +183,7 @@ describe("context-writer", () => {
       }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpContextIndex)))
 
       expect(index.schemaVersion).toBe(SCHEMA_VERSION)
-      expect(index.schemaVersion).toBe("0.1.0")
+      expect(index.schemaVersion).toBe("0.2.0")
       expect(index.toolVersion).toBe("9.9.9")
     }).pipe(Effect.provide(NodeContext.layer)))
 
@@ -261,7 +261,7 @@ describe("context-writer", () => {
 
         // Verify schemaVersion matches the constant from core
         expect(audit.schemaVersion).toBe(SCHEMA_VERSION)
-        expect(audit.schemaVersion).toBe("0.1.0")
+        expect(audit.schemaVersion).toBe("0.2.0")
       }).pipe(Effect.provide(NodeContext.layer)))
 
     it.scoped("audit.json should include revision field starting at 1", () =>
@@ -353,7 +353,7 @@ describe("context-writer", () => {
 
         // Verify schemaVersion matches the constant from core
         expect(index.schemaVersion).toBe(SCHEMA_VERSION)
-        expect(index.schemaVersion).toBe("0.1.0")
+        expect(index.schemaVersion).toBe("0.2.0")
       }).pipe(Effect.provide(NodeContext.layer)))
 
     // TODO: make the test match the description; we do NOT want legacy compatibility
@@ -369,7 +369,7 @@ describe("context-writer", () => {
         yield* fs.makeDirectory(outputDir, { recursive: true })
         const auditPath = path.join(outputDir, "audit.json")
         const legacyAudit = {
-          schemaVersion: "0.1.0",
+          schemaVersion: "0.2.0",
           toolVersion: "0.1.0",
           projectRoot: ".",
           timestamp: "2025-01-01T00:00:00.000Z",
