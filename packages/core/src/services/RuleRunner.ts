@@ -33,7 +33,7 @@ export interface RuleRunnerService {
   /**
    * Run all rules against the project
    */
-  runRules: (rules: Rule[], config: Config) => Effect.Effect<RuleResult[]>
+  runRules: (rules: ReadonlyArray<Rule>, config: Config) => Effect.Effect<RuleResult[]>
 }
 
 /**
@@ -71,7 +71,7 @@ export const RuleRunnerLive = Layer.effect(
     const importIndexService = yield* ImportIndex
     const pathSvc = yield* Path.Path
 
-    const runRules = (rules: Rule[], config: Config): Effect.Effect<RuleResult[]> =>
+    const runRules = (rules: ReadonlyArray<Rule>, config: Config): Effect.Effect<RuleResult[]> =>
       Effect.gen(function*() {
         yield* Console.log(`Running ${rules.length} rules...`)
 

@@ -17,7 +17,7 @@ import * as Path from "@effect/platform/Path"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { matchGlob } from "../util/glob.js"
+import { matchGlob } from "../utils/glob.js"
 
 /**
  * Supported text file extensions for content reading.
