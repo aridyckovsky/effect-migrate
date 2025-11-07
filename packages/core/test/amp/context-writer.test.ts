@@ -85,8 +85,8 @@ describe("context-writer", () => {
       expect(audit.findings.rules).toBeDefined()
       expect(audit.findings.files).toBeDefined()
       expect(audit.findings.results).toBeDefined()
-      expect(audit.findings.groups.byFile).toBeDefined()
-      expect(audit.findings.groups.byRule).toBeDefined()
+      expect(audit.findings.groups?.byFile).toBeDefined()
+      expect(audit.findings.groups?.byRule).toBeDefined()
 
       // Verify normalized structure details
       expect(audit.findings.rules).toHaveLength(1)
