@@ -36,6 +36,7 @@ import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
+import { PresetLoaderWorkspaceLive } from "../layers/PresetLoaderWorkspace.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
 
 /**
@@ -76,7 +77,9 @@ export const metricsCommand = Command.make(
   ({ config: configPath, json, ampOut }) =>
     Effect.gen(function*() {
       // Load configuration, presets, and construct all rules
-      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath)
+      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath).pipe(
+        Effect.provide(PresetLoaderWorkspaceLive)
+      )
 
       // Run rules via RuleRunner service
       const runner = yield* RuleRunner

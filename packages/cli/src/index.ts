@@ -30,3 +30,15 @@ const program = Command.run(cli, {
 })(argv)
 
 program.pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
+
+// ============================================================================
+// Public Exports (for library usage)
+// ============================================================================
+
+/**
+ * Workspace-aware PresetLoader layer for CLI.
+ *
+ * Attempts to resolve presets from local workspace (monorepo) first,
+ * then falls back to npm resolution.
+ */
+export { PresetLoaderWorkspaceLive } from "./layers/PresetLoaderWorkspace.js"

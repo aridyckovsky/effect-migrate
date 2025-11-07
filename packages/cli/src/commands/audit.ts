@@ -37,6 +37,7 @@ import * as Effect from "effect/Effect"
 import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
+import { PresetLoaderWorkspaceLive } from "../layers/PresetLoaderWorkspace.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
 
 /**
@@ -82,7 +83,9 @@ export const auditCommand = Command.make(
   ({ config: configPath, json, strict, ampOut }) =>
     Effect.gen(function*() {
       // Load configuration, presets, and construct all rules
-      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath)
+      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath).pipe(
+        Effect.provide(PresetLoaderWorkspaceLive)
+      )
 
       if (rules.length === 0) {
         yield* Console.log("⚠️  No rules configured")

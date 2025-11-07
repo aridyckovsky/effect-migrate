@@ -1,30 +1,35 @@
 /**
- * Rules Loader - Combine preset and user-defined rules
+ * Rules Loader - Thin orchestrator for loading config and rules
  *
- * This module provides a centralized function to load presets, merge config defaults,
- * and construct rules from both preset and user-defined patterns/boundaries.
+ * This module orchestrates core services to load configuration, presets,
+ * and construct the final rules array. It handles user-facing concerns like
+ * logging and error presentation while delegating business logic to core.
  *
  * @module @effect-migrate/cli/loaders/rules
  * @since 0.3.0
  */
 
-import { loadConfig, makeBoundaryRule, makePatternRule } from "@effect-migrate/core"
-import type { Config, Rule } from "@effect-migrate/core"
-import type { ConfigLoadError } from "@effect-migrate/core"
+import {
+  type Config,
+  type ConfigLoadError,
+  loadConfig,
+  mergeConfig,
+  PresetLoader,
+  type Rule,
+  rulesFromConfig
+} from "@effect-migrate/core"
 import type { PlatformError } from "@effect/platform/Error"
 import type { FileSystem } from "@effect/platform/FileSystem"
 import type { Path } from "@effect/platform/Path"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
-import { mergeConfig } from "./config.js"
-import { loadPresets } from "./presets.js"
 
 /**
  * Result of loading and combining all rules (preset + user-defined)
  */
 export interface LoadRulesResult {
   /** Combined rules from presets and user config */
-  readonly rules: Rule[]
+  readonly rules: ReadonlyArray<Rule>
   /** Effective config after merging preset defaults with user config */
   readonly config: Config
 }
@@ -32,13 +37,17 @@ export interface LoadRulesResult {
 /**
  * Load configuration, presets, and construct all rules.
  *
- * This function centralizes the logic of:
- * 1. Loading config file
- * 2. Loading preset modules (if configured)
- * 3. Merging preset defaults with user config (user wins)
- * 4. Constructing rules from preset rules
- * 5. Constructing rules from user-defined patterns and boundaries
- * 6. Combining all rules into single array
+ * This function orchestrates core services to:
+ * 1. Load config file (via core.loadConfig)
+ * 2. Load preset modules if configured (via PresetLoader service)
+ * 3. Merge preset defaults with user config (via core.mergeConfig, user wins)
+ * 4. Construct rules from effective config (via core.rulesFromConfig)
+ * 5. Return combined rules and effective config
+ *
+ * CLI-specific concerns:
+ * - Progress logging (Console service)
+ * - User-friendly error messages
+ * - Graceful preset load failures (warnings, not failures)
  *
  * Used by both `audit` and `metrics` commands to avoid duplication.
  *
@@ -50,7 +59,9 @@ export interface LoadRulesResult {
  *
  * @example
  * ```typescript
- * const { rules, config } = yield* loadRulesAndConfig("effect-migrate.config.ts")
+ * const { rules, config } = yield* loadRulesAndConfig("effect-migrate.config.ts").pipe(
+ *   Effect.provide(PresetLoaderWorkspaceLive)
+ * )
  *
  * // Use rules with RuleRunner
  * const runner = yield* RuleRunner
@@ -59,9 +70,14 @@ export interface LoadRulesResult {
  */
 export const loadRulesAndConfig = (
   configPath: string
-): Effect.Effect<LoadRulesResult, ConfigLoadError | PlatformError, FileSystem | Path> =>
+): Effect.Effect<
+  LoadRulesResult,
+  ConfigLoadError | PlatformError,
+  PresetLoader | FileSystem | Path
+> =>
   Effect.gen(function*() {
-    // Load configuration
+    // Load configuration (from core)
+    yield* Console.log("🔍 Loading configuration...")
     const config = yield* loadConfig(configPath).pipe(
       Effect.catchAll(error =>
         Effect.gen(function*() {
@@ -72,73 +88,35 @@ export const loadRulesAndConfig = (
     )
 
     // Load presets if configured
-    let allRules: Rule[] = []
-    let effectiveConfig: Config = config
+    let presetRules: ReadonlyArray<Rule> = []
+    let presetDefaults: Record<string, unknown> = {}
 
     if (config.presets && config.presets.length > 0) {
-      const presetResult = yield* loadPresets(config.presets).pipe(
+      yield* Console.log(`📦 Loading ${config.presets.length} preset(s)...`)
+
+      const loader = yield* PresetLoader
+      const result = yield* loader.loadPresets(config.presets).pipe(
         Effect.catchTag("PresetLoadError", error =>
           Effect.gen(function*() {
-            yield* Console.warn(
-              `⚠️  Failed to load preset ${error.preset}: ${error.message}`
-            )
+            yield* Console.warn(`⚠️  Failed to load preset: ${error.message}`)
             return { rules: [], defaults: {} }
           }))
       )
 
-      yield* Console.log(
-        `✓ Loaded ${config.presets.length} preset(s) with ${presetResult.rules.length} rules`
-      )
-
-      // Merge preset defaults with user config (user config wins)
-      effectiveConfig = mergeConfig(presetResult.defaults, config)
-
-      // Add preset rules
-      allRules = [...presetResult.rules]
+      presetRules = result.rules
+      presetDefaults = result.defaults
     }
 
-    // Collect user-defined rules from config using rule factories
-    const userRules: Rule[] = []
+    // Merge preset defaults with user config (user config wins) - from core
+    const effectiveConfig = mergeConfig(presetDefaults, config)
 
-    // Pattern rules - convert config patterns to actual rules
-    if (effectiveConfig.patterns) {
-      for (const pattern of effectiveConfig.patterns) {
-        userRules.push(
-          makePatternRule({
-            id: pattern.id,
-            files: Array.isArray(pattern.files) ? pattern.files : [pattern.files],
-            pattern: pattern.pattern,
-            message: pattern.message,
-            severity: pattern.severity,
-            ...(pattern.negativePattern !== undefined && {
-              negativePattern: pattern.negativePattern
-            }),
-            ...(pattern.docsUrl !== undefined && { docsUrl: pattern.docsUrl }),
-            ...(pattern.tags !== undefined && { tags: [...pattern.tags] })
-          })
-        )
-      }
-    }
+    // Construct rules from effective config (both preset-defined and user-defined) - from core
+    const configRules = rulesFromConfig(effectiveConfig)
 
-    // Boundary rules - convert config boundaries to actual rules
-    if (effectiveConfig.boundaries) {
-      for (const boundary of effectiveConfig.boundaries) {
-        userRules.push(
-          makeBoundaryRule({
-            id: boundary.id,
-            from: boundary.from,
-            disallow: [...boundary.disallow],
-            message: boundary.message,
-            severity: boundary.severity,
-            ...(boundary.docsUrl !== undefined && { docsUrl: boundary.docsUrl }),
-            ...(boundary.tags !== undefined && { tags: [...boundary.tags] })
-          })
-        )
-      }
-    }
+    // Combine preset rules with config rules
+    const allRules = [...presetRules, ...configRules]
 
-    // Combine preset and user rules
-    allRules = [...allRules, ...userRules]
+    yield* Console.log(`✓ Loaded ${allRules.length} rule(s)`)
 
     return {
       rules: allRules,
