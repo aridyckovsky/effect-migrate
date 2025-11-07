@@ -1,22 +1,15 @@
 ---
-"@effect-migrate/core": major
+"@effect-migrate/core": minor
 ---
 
-**BREAKING CHANGE:** Normalize audit schema to reduce file size by 40-70%
+Add normalized schema for 40-70% audit.json size reduction through deduplication
 
-Replace duplicated `byFile` and `byRule` structure with normalized, index-based approach using deduplicated `rules[]`, `files[]`, and `results[]` arrays.
+**Breaking Change:** Schema version 0.1.0 → 0.2.0 (no backwards compatibility)
 
-**Schema version:** 0.1.0 → 0.2.0
-
-**Key changes:**
-
-- Add `normalizeResults()` for deduplication and stable key generation
-- Add `expandResult()` for reconstructing full RuleResult from compact format
-- Add `deriveResultKey()` for content-based keys enabling cross-checkpoint deltas
-- Replace legacy byFile/byRule with index-based groupings
+- Replace `byFile`/`byRule` with deduplicated `rules[]`, `files[]`, `results[]` arrays
+- Add index-based groupings in `groups` field for O(1) lookup
 - Implement deterministic ordering (sorted rules/files) for reproducible output
-- Extract `RULE_KINDS` constant for type safety
-
-**Size reduction:** 40-70% verified on realistic datasets (1000 findings, 10 rules, 50 files)
-
-**Migration:** No backwards compatibility - consumers must update to new schema format
+- Add stable content-based keys for cross-checkpoint delta computation
+- Compact range representation using tuples instead of objects
+- Export normalizer utilities: `normalizeResults()`, `expandResult()`, `deriveResultKey()`
+- Comprehensive test suite with 40+ test cases verifying size reduction and correctness
