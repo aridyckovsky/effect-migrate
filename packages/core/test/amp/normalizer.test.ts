@@ -350,6 +350,7 @@ describe("normalizeResults", () => {
       expect(normalized.summary).toEqual({
         errors: 2,
         warnings: 2,
+        info: 0,
         totalFiles: 3,
         totalFindings: 4
       })
@@ -368,7 +369,8 @@ describe("normalizeResults", () => {
       expect(normalized.rules[1].severity).toBe("info")
       expect(normalized.summary).toEqual({
         errors: 1,
-        warnings: 2, // info counts as warning in summary
+        warnings: 1,
+        info: 1,
         totalFiles: 3,
         totalFindings: 3
       })
@@ -599,6 +601,7 @@ describe("normalizeResults", () => {
       expect(normalized.summary).toEqual({
         errors: 0,
         warnings: 0,
+        info: 0,
         totalFiles: 0,
         totalFindings: 0
       })
