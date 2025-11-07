@@ -334,6 +334,31 @@ export { writeAmpContext } from "./amp/context-writer.js"
 export { writeMetricsContext } from "./amp/metrics-writer.js"
 
 /**
+ * Normalize rule results into compact structure for Amp context.
+ */
+export { normalizeResults } from "./amp/normalizer.js"
+
+/**
+ * Expand a compact result back to full RuleResult format.
+ */
+export { expandResult } from "./amp/normalizer.js"
+
+/**
+ * Generate stable key for a result (for cross-checkpoint delta computation).
+ */
+export { deriveResultKey } from "./amp/normalizer.js"
+
+/**
+ * Derive stable keys for all results in a FindingsGroup.
+ */
+export { deriveResultKeys } from "./amp/normalizer.js"
+
+/**
+ * Rebuild groups from results array (when groups were omitted).
+ */
+export { rebuildGroups } from "./amp/normalizer.js"
+
+/**
  * Add a thread reference to the tracking system.
  */
 export { addThread } from "./amp/thread-manager.js"
