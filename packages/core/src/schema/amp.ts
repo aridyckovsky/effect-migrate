@@ -10,6 +10,7 @@
  */
 
 import * as Schema from "effect/Schema"
+import { RULE_KINDS } from "../rules/types.js"
 import { Semver } from "./common.js"
 
 /**
@@ -25,7 +26,7 @@ export const RuleResultSchema = Schema.Struct({
   /** Unique rule identifier */
   id: Schema.String,
   /** Rule type (pattern, boundary, etc.) */
-  ruleKind: Schema.String,
+  ruleKind: Schema.Literal(...RULE_KINDS),
   /** Severity level */
   severity: Schema.Literal("error", "warning", "info"),
   /** Human-readable message */
@@ -87,6 +88,8 @@ export const ThreadReference = Schema.Struct({
  * errors, warnings, affected files, and total findings. Used for quick assessment
  * of migration progress and health.
  *
+ * Note: `info` severity findings are counted as warnings in the summary.
+ *
  * @category Schema
  * @since 0.1.0
  */
@@ -119,22 +122,105 @@ export const ConfigSnapshot = Schema.Struct({
 })
 
 /**
- * Grouped findings by file and by rule.
+ * Rule definition with metadata stored once per rule.
  *
- * Organizes migration findings in two different views:
- * - By file: All findings for a given file grouped together
- * - By rule: All instances of a specific rule violation grouped together
+ * Normalizes rule information to avoid duplication across findings.
+ * Each rule is stored once with its metadata, and individual findings
+ * reference rules by index.
  *
- * This dual grouping enables both file-centric and rule-centric analysis.
+ * @category Schema
+ * @since 0.1.0
+ */
+export const RuleDef = Schema.Struct({
+  /** Unique rule identifier */
+  id: Schema.String,
+  /** Rule type (pattern, boundary, docs, metrics) */
+  kind: Schema.Literal(...RULE_KINDS),
+  /** Severity level */
+  severity: Schema.Literal("error", "warning", "info"),
+  /** Human-readable message */
+  message: Schema.String,
+  /** Documentation URL */
+  docsUrl: Schema.optional(Schema.String),
+  /** Rule tags */
+  tags: Schema.optional(Schema.Array(Schema.String))
+})
+
+/**
+ * Compact range representation as a 4-element tuple.
+ *
+ * Stores position information in a space-efficient format:
+ * [startLine, startColumn, endLine, endColumn]
+ *
+ * @category Schema
+ * @since 0.1.0
+ */
+export const CompactRange = Schema.Tuple(
+  Schema.Number, // startLine
+  Schema.Number, // startColumn
+  Schema.Number, // endLine
+  Schema.Number // endColumn
+)
+
+/**
+ * Compact result with indices pointing to normalized rules and files.
+ *
+ * Each result references a rule by index into the rules array, and optionally
+ * a file by index into the files array. This avoids duplicating rule metadata
+ * and file paths across thousands of findings.
+ *
+ * @category Schema
+ * @since 0.1.0
+ */
+export const CompactResult = Schema.Struct({
+  /** Index into rules array */
+  rule: Schema.Number,
+  /** Index into files array */
+  file: Schema.optional(Schema.Number),
+  /** Compact range (optional) */
+  range: Schema.optional(CompactRange),
+  /** Message override (optional, overrides rule.message) */
+  message: Schema.optional(Schema.String)
+})
+
+/**
+ * Normalized findings structure with deduplicated rules and files.
+ *
+ * Organizes findings efficiently by storing rules and files once, with compact
+ * results referencing them by index. Provides two grouping views:
+ * - groups.byFile: Stringified file index → result indices (e.g., "0": [0, 1, 2])
+ * - groups.byRule: Stringified rule index → result indices (e.g., "0": [0, 2])
+ *
+ * The groups field is optional as it can be derived from results[], though
+ * the current implementation always emits it for performance.
+ *
+ * This structure reduces JSON size and parsing overhead for large migration audits.
  *
  * @category Schema
  * @since 0.1.0
  */
 export const FindingsGroup = Schema.Struct({
-  /** Findings grouped by file path (relative to project root, POSIX-style) */
-  byFile: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
-  /** Findings grouped by rule ID */
-  byRule: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResultSchema) }),
+  /** Rule definitions (stored once, referenced by index) */
+  rules: Schema.Array(RuleDef),
+  /** File paths (stored once, referenced by index) */
+  files: Schema.Array(Schema.String),
+  /** Compact results array */
+  results: Schema.Array(CompactResult),
+  /**
+   * Groupings by file and rule (optional for future space optimization).
+   *
+   * Currently always emitted by normalizeResults() for O(1) lookup performance.
+   * May be omitted in future versions to save ~5-10% additional space.
+   * Use rebuildGroups() to reconstruct if missing.
+   */
+  groups: Schema.optional(
+    Schema.Struct({
+      /** Result indices grouped by file path */
+      byFile: Schema.Record({ key: Schema.String, value: Schema.Array(Schema.Number) }),
+      /** Result indices grouped by rule ID */
+      byRule: Schema.Record({ key: Schema.String, value: Schema.Array(Schema.Number) })
+    })
+  ),
   /** Summary statistics */
   summary: FindingsSummary
 })
@@ -158,19 +244,29 @@ export const FindingsGroup = Schema.Struct({
  *   "projectRoot": ".",
  *   "timestamp": "2025-11-06T12:00:00.000Z",
  *   "findings": {
- *     "byFile": {
- *       "src/index.ts": [
- *         {
- *           "id": "no-async-await",
- *           "severity": "error",
- *           "message": "Avoid async/await",
- *           "file": "src/index.ts",
- *           "ruleKind": "pattern"
- *         }
- *       ]
- *     },
- *     "byRule": {
- *       "no-async-await": [...]
+ *     "rules": [
+ *       {
+ *         "id": "no-async-await",
+ *         "kind": "pattern",
+ *         "severity": "error",
+ *         "message": "Avoid async/await"
+ *       }
+ *     ],
+ *     "files": ["src/index.ts"],
+ *     "results": [
+ *       {
+ *         "rule": 0,
+ *         "file": 0,
+ *         "range": [10, 5, 10, 25]
+ *       }
+ *     ],
+ *     "groups": {
+ *       "byFile": {
+ *         "0": [0]
+ *       },
+ *       "byRule": {
+ *         "0": [0]
+ *       }
  *     },
  *     "summary": {
  *       "errors": 1,
@@ -380,3 +476,7 @@ export type ThreadsFile = Schema.Schema.Type<typeof ThreadsFile>
 export type MetricsSummary = Schema.Schema.Type<typeof MetricsSummary>
 export type RuleMetrics = Schema.Schema.Type<typeof RuleMetrics>
 export type AmpMetricsContext = Schema.Schema.Type<typeof AmpMetricsContext>
+export type RuleDef = Schema.Schema.Type<typeof RuleDef>
+export type CompactRange = Schema.Schema.Type<typeof CompactRange>
+export type CompactResult = Schema.Schema.Type<typeof CompactResult>
+export type FindingsGroup = Schema.Schema.Type<typeof FindingsGroup>
