@@ -1,3 +1,23 @@
+/**
+ * Workspace-Aware Preset Loader - CLI layer with monorepo support
+ *
+ * This module provides a PresetLoader implementation optimized for CLI usage
+ * in monorepo environments. It resolves presets from the local workspace first,
+ * enabling faster development iteration without rebuilding/publishing packages.
+ *
+ * **Resolution strategy:**
+ * 1. Check `packages/{package-name}/build/esm/index.js` in current workspace
+ * 2. Fall back to npm package resolution if workspace file not found
+ *
+ * This is especially useful for:
+ * - Developing presets within the effect-migrate monorepo
+ * - Testing preset changes without publishing
+ * - Running CLI commands in workspace root during development
+ *
+ * @module @effect-migrate/cli/layers/PresetLoaderWorkspace
+ * @since 0.4.0
+ */
+
 import {
   type LoadPresetsResult,
   type Preset,
@@ -19,8 +39,11 @@ import { pathToFileURL } from "node:url"
  * then falls back to npm resolution.
  *
  * Resolution strategy:
- * 1. Try workspace path: packages/{package-name}/build/esm/index.js
+ * 1. Try workspace path: packages/{packageName}/build/esm/index.js
  * 2. Fall back to npm import if workspace file not found
+ *
+ * @category Layers
+ * @since 0.4.0
  *
  * @example
  * ```ts
