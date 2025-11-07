@@ -1,10 +1,10 @@
+import { SystemError } from "@effect/platform/Error"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as TestClock from "effect/TestClock"
 import {
   addThread,
   readThreads,
@@ -29,7 +29,7 @@ interface MockFileSystemState {
 const makeMockFileSystem = () => {
   const state: MockFileSystemState = { files: new Map() }
 
-  return FileSystem.FileSystem.of({
+  const mockFs = FileSystem.FileSystem.of({
     access: () => Effect.void,
     chmod: () => Effect.void,
     chown: () => Effect.void,
@@ -49,11 +49,11 @@ const makeMockFileSystem = () => {
         const content = state.files.get(path)
         if (!content) {
           return yield* Effect.fail(
-            new FileSystem.PlatformError({
+            new SystemError({
               reason: "NotFound",
               module: "FileSystem",
               method: "readFile",
-              message: `File not found: ${path}`
+              description: `File not found: ${path}`
             })
           )
         }
@@ -64,11 +64,11 @@ const makeMockFileSystem = () => {
         const content = state.files.get(path)
         if (!content) {
           return yield* Effect.fail(
-            new FileSystem.PlatformError({
+            new SystemError({
               reason: "NotFound",
               module: "FileSystem",
               method: "readFileString",
-              message: `File not found: ${path}`
+              description: `File not found: ${path}`
             })
           )
         }
@@ -92,14 +92,18 @@ const makeMockFileSystem = () => {
     writeFileString: (path, content) =>
       Effect.sync(() => {
         state.files.set(path, content)
-      }),
-    state
+      })
   })
+
+  // Return both the filesystem and state as a tuple for external access
+  return { mockFs, state }
 }
 
 const MockPathLayer = Layer.succeed(
   Path.Path,
   Path.Path.of({
+    [Path.TypeId]: Path.TypeId,
+    sep: "/",
     basename: path => path.split("/").pop() ?? "",
     dirname: path => path.split("/").slice(0, -1).join("/") || "/",
     extname: path => {
@@ -108,22 +112,23 @@ const MockPathLayer = Layer.succeed(
       return idx > 0 ? base.slice(idx) : ""
     },
     format: () => "",
-    fromFileUrl: url => url.toString(),
+    fromFileUrl: url => Effect.succeed(url instanceof URL ? url.pathname : new URL(url).pathname),
     isAbsolute: path => path.startsWith("/"),
     join: (...parts) => parts.join("/"),
     normalize: path => path,
     parse: () => ({ root: "", dir: "", base: "", ext: "", name: "" }),
     relative: (from, to) => to.replace(from, "").replace(/^\//, ""),
     resolve: (...paths) => "/" + paths.filter(Boolean).join("/").replace(/\/+/g, "/"),
-    sep: "/",
-    toFileUrl: path => new URL(`file://${path}`),
+    toFileUrl: path => Effect.succeed(new URL(`file://${path}`)),
     toNamespacedPath: path => path
   })
 )
 
 // Helper to create test context with fresh mock filesystem
-const makeTestContext = () =>
-  Layer.merge(Layer.succeed(FileSystem.FileSystem, makeMockFileSystem()), MockPathLayer)
+const makeTestContext = () => {
+  const { mockFs } = makeMockFileSystem()
+  return Layer.merge(Layer.succeed(FileSystem.FileSystem, mockFs), MockPathLayer)
+}
 
 describe("thread-manager", () => {
   describe("validateThreadUrl", () => {
@@ -202,8 +207,8 @@ describe("thread-manager", () => {
 
     it.effect("handles malformed JSON gracefully", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
-        mockFs.state.files.set("/test-dir/threads.json", "{ invalid json }")
+        const { mockFs, state } = makeMockFileSystem()
+        state.files.set("/test-dir/threads.json", "{ invalid json }")
 
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
@@ -222,8 +227,8 @@ describe("thread-manager", () => {
 
     it.effect("handles invalid schema gracefully", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
-        mockFs.state.files.set(
+        const { mockFs, state } = makeMockFileSystem()
+        state.files.set(
           "/test-dir/threads.json",
           JSON.stringify({
             version: 1,
@@ -253,10 +258,10 @@ describe("thread-manager", () => {
 
     it.effect("successfully reads valid threads.json", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = new Date("2025-11-04T10:00:00Z")
 
-        mockFs.state.files.set(
+        state.files.set(
           "/test-dir/threads.json",
           JSON.stringify({
             version: 1,
@@ -292,7 +297,7 @@ describe("thread-manager", () => {
   describe("addThread", () => {
     it.scoped("adds new thread with all fields", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
 
         const baseContext = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -314,7 +319,7 @@ describe("thread-manager", () => {
         expect(result.current.description).toBe("API migration thread")
 
         // Verify written to file
-        const written = mockFs.state.files.get("/test-dir/threads.json")
+        const written = state.files.get("/test-dir/threads.json")
         expect(written).toBeDefined()
         const parsed = JSON.parse(written!)
         expect(parsed.threads.length).toBe(1)
@@ -322,7 +327,7 @@ describe("thread-manager", () => {
 
     it.effect("merges tags using set union on duplicate", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = DateTime.unsafeMake(1000)
 
         // Add initial thread
@@ -338,7 +343,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
+        state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
 
         // Add same thread with different tags
         const result = yield* addThread("/test-dir", {
@@ -360,7 +365,7 @@ describe("thread-manager", () => {
 
     it.effect("merges scope using set union on duplicate", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = DateTime.unsafeMake(1000)
 
         // Add initial thread
@@ -376,7 +381,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
+        state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
 
         // Add same thread with different scope
         const result = yield* addThread("/test-dir", {
@@ -398,7 +403,7 @@ describe("thread-manager", () => {
 
     it.scoped("preserves original createdAt on merge", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const originalTimestamp = DateTime.unsafeMake(1000)
 
         // Add initial thread
@@ -413,7 +418,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
+        state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
 
         const baseContext = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -433,14 +438,12 @@ describe("thread-manager", () => {
 
     it.live("sorts threads by createdAt descending", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs } = makeMockFileSystem()
 
         const context = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
           MockPathLayer
         )
-
-        const startTime = Date.now()
 
         // Add first thread
         yield* addThread("/test-dir", {
@@ -476,7 +479,7 @@ describe("thread-manager", () => {
   describe("read/write round-trip", () => {
     it.effect("writes threads and reads back successfully", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs } = makeMockFileSystem()
         const timestamp = DateTime.unsafeMake(1000)
 
         const threadsToWrite: ThreadsFile = {
@@ -516,7 +519,7 @@ describe("thread-manager", () => {
   describe("schema migration tests", () => {
     it.effect("handles version 0 by reading it as-is (no migration yet)", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = new Date("2025-11-04T10:00:00Z")
 
         // Create old format with version 0 (schema accepts numeric version)
@@ -534,7 +537,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(oldFormat))
+        state.files.set("/test-dir/threads.json", JSON.stringify(oldFormat))
 
         const context = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -552,7 +555,7 @@ describe("thread-manager", () => {
 
     it.effect("handles missing version field gracefully (returns empty)", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = new Date("2025-11-04T10:00:00Z")
 
         // Create format without version field (schema validation fails)
@@ -567,7 +570,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(noVersionFormat))
+        state.files.set("/test-dir/threads.json", JSON.stringify(noVersionFormat))
 
         const context = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -583,7 +586,7 @@ describe("thread-manager", () => {
 
     it.effect("writes audit version when adding thread", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const oldTimestamp = new Date("2025-11-03T10:00:00Z")
 
         // Start with version 0 file (old audit version)
@@ -599,7 +602,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(oldFormat))
+        state.files.set("/test-dir/threads.json", JSON.stringify(oldFormat))
 
         const context = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -631,7 +634,7 @@ describe("thread-manager", () => {
 
     it.effect("handles future versions gracefully (treats as valid if schema matches)", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = new Date("2025-11-04T10:00:00Z")
 
         // Create format with future version (999) but valid schema
@@ -647,7 +650,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(futureFormat))
+        state.files.set("/test-dir/threads.json", JSON.stringify(futureFormat))
 
         const context = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -665,7 +668,7 @@ describe("thread-manager", () => {
 
     it.effect("preserves data when unknown fields present (filtered by schema)", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = new Date("2025-11-04T10:00:00Z")
 
         // Create format with extra unknown fields (schema strips them)
@@ -684,7 +687,7 @@ describe("thread-manager", () => {
           unknownTopLevel: "also stripped"
         }
 
-        mockFs.state.files.set("/test-dir/threads.json", JSON.stringify(formatWithExtras))
+        state.files.set("/test-dir/threads.json", JSON.stringify(formatWithExtras))
 
         const context = Layer.merge(
           Layer.succeed(FileSystem.FileSystem, mockFs),
@@ -703,7 +706,7 @@ describe("thread-manager", () => {
 
     it.effect("writes threads with version 1 consistently", () =>
       Effect.gen(function*() {
-        const mockFs = makeMockFileSystem()
+        const { mockFs, state } = makeMockFileSystem()
         const timestamp = DateTime.unsafeMake(1000)
 
         const context = Layer.merge(
@@ -725,7 +728,7 @@ describe("thread-manager", () => {
 
         yield* writeThreads("/test-dir", threadsToWrite).pipe(Effect.provide(context))
 
-        const written = mockFs.state.files.get("/test-dir/threads.json")
+        const written = state.files.get("/test-dir/threads.json")
         expect(written).toBeDefined()
 
         const parsed = JSON.parse(written!)

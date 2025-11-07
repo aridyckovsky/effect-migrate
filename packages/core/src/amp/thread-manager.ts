@@ -41,9 +41,9 @@ const ThreadUrl = Schema.String.pipe(Schema.pattern(THREAD_URL_RE), Schema.brand
 const mergeUnique = <T>(a: readonly T[] | undefined = [], b: readonly T[] | undefined = []): T[] =>
   Array.from(new Set([...a, ...b])).sort()
 
-// Local type aliases for internal use
-type ThreadEntry = AmpSchema.ThreadEntry
-type ThreadsFile = AmpSchema.ThreadsFile
+// Export types for external use (tests, consumers)
+export type ThreadEntry = AmpSchema.ThreadEntry
+export type ThreadsFile = AmpSchema.ThreadsFile
 
 /**
  * Extract normalized thread ID from Amp thread URL.

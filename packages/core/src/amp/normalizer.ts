@@ -214,7 +214,13 @@ export const normalizeResults = (results: readonly RuleResult[]): FindingsGroup 
     files,
     results: remappedResults,
     groups: { byFile, byRule },
-    summary: { errors, warnings, info, totalFiles: files.length, totalFindings: remappedResults.length }
+    summary: {
+      errors,
+      warnings,
+      info,
+      totalFiles: files.length,
+      totalFindings: remappedResults.length
+    }
   }
 }
 
