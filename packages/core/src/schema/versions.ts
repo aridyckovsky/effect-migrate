@@ -36,7 +36,7 @@
  * - Add migration guide in docs/ for breaking changes
  * - Tests will fail if schemas don't match
  */
-export const SCHEMA_VERSION = "0.1.0" as const
+export const SCHEMA_VERSION = "0.2.0"
 
 /**
  * Type alias for schema version.
