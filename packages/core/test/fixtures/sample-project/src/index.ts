@@ -1,4 +1,4 @@
-import { helper } from "./utils/helper"
+import { helper } from "./utils/helper.js"
 import * as Effect from "effect/Effect"
 
 export async function fetchData() {
