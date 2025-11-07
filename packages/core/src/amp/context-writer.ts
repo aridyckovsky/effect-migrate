@@ -39,17 +39,6 @@
  * @module @effect-migrate/cli/amp
  */
 
-import type { Config, RuleResult } from "@effect-migrate/core"
-import {
-  AmpAuditContext,
-  type AmpAuditContext as AmpAuditContextType,
-  AmpContextIndex,
-  type AmpContextIndex as AmpContextIndexType,
-  SCHEMA_VERSION,
-  ThreadEntry,
-  type ThreadReference as ThreadReferenceType,
-  ThreadsFile
-} from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -57,6 +46,19 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import type { RuleResult } from "../rules/types.js"
+import {
+  AmpAuditContext,
+  type AmpAuditContext as AmpAuditContextType,
+  AmpContextIndex,
+  type AmpContextIndex as AmpContextIndexType,
+  ThreadEntry,
+  type ThreadReference as ThreadReferenceType,
+  ThreadsFile
+} from "../schema/amp.js"
+import type { Config } from "../schema/Config.js"
+import { SCHEMA_VERSION } from "../schema/versions.js"
+import { normalizeResults } from "./normalizer.js"
 import { readThreads } from "./thread-manager.js"
 
 /**
@@ -272,30 +274,16 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     // Get next audit revision (increments on each run)
     const revision = yield* getNextAuditRevision(outputDir)
 
-    // Group findings by file and rule
-    const byFile: Record<string, RuleResult[]> = {}
-    const byRule: Record<string, RuleResult[]> = {}
-
-    for (const result of results) {
-      // Group by file (convert to relative paths and normalize to POSIX)
-      if (result.file) {
-        const relativePath = path.relative(cwd, result.file)
-        const normalizedFile = relativePath.split(path.sep).join("/")
-        if (!byFile[normalizedFile]) {
-          byFile[normalizedFile] = []
+    // Pre-normalize file paths before calling normalizer
+    const normalizedInput: RuleResult[] = results.map(r =>
+      r.file
+        ? {
+          ...r,
+          file: path.relative(cwd, r.file).split(path.sep).join("/")
         }
-        byFile[normalizedFile].push(result)
-      }
-
-      // Group by rule
-      if (!byRule[result.id]) {
-        byRule[result.id] = []
-      }
-      byRule[result.id].push(result)
-    }
-
-    const errors = results.filter(r => r.severity === "error").length
-    const warnings = results.filter(r => r.severity === "warning").length
+        : r
+    )
+    const findings = normalizeResults(normalizedInput)
 
     // Read and attach threads if they exist
     const threadsFile = yield* readThreads(outputDir).pipe(
@@ -316,19 +304,10 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       toolVersion,
       projectRoot: ".",
       timestamp,
-      findings: {
-        byFile,
-        byRule,
-        summary: {
-          errors,
-          warnings,
-          totalFiles: Object.keys(byFile).length,
-          totalFindings: results.length
-        }
-      },
+      findings,
       config: {
-        rulesEnabled: Array.from(new Set(results.map(r => r.id))),
-        failOn: [...(config.report?.failOn ?? ["error"])]
+        rulesEnabled: Array.from(new Set(results.map(r => r.id))).sort(),
+        failOn: [...(config.report?.failOn ?? ["error"])].sort()
       },
       ...(auditThreads.length > 0 && { threads: auditThreads })
     }
@@ -363,13 +342,13 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     yield* fs.writeFileString(indexPath, JSON.stringify(indexJson, null, 2))
 
     // Generate badges.md for README integration
-    const errorBadge = errors === 0
+    const errorBadge = findings.summary.errors === 0
       ? "![errors](https://img.shields.io/badge/errors-0-success)"
-      : `![errors](https://img.shields.io/badge/errors-${errors}-critical)`
+      : `![errors](https://img.shields.io/badge/errors-${findings.summary.errors}-critical)`
 
-    const warningBadge = warnings === 0
+    const warningBadge = findings.summary.warnings === 0
       ? "![warnings](https://img.shields.io/badge/warnings-0-success)"
-      : `![warnings](https://img.shields.io/badge/warnings-${warnings}-yellow)`
+      : `![warnings](https://img.shields.io/badge/warnings-${findings.summary.warnings}-yellow)`
 
     const badgesContent = `# Migration Status
 
@@ -379,9 +358,9 @@ Last updated: ${new Date().toLocaleString()}
 
 ## Summary
 
-- **Errors**: ${errors}
-- **Warnings**: ${warnings}
-- **Files checked**: ${Object.keys(byFile).length}
+- **Errors**: ${findings.summary.errors}
+- **Warnings**: ${findings.summary.warnings}
+- **Files checked**: ${findings.files.length}
 
 ## Using with Amp
 
