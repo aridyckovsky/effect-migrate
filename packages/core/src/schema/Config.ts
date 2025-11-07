@@ -236,3 +236,35 @@ export class ConfigSchema extends Schema.Class<ConfigSchema>("ConfigSchema")({
  * @since 0.1.0
  */
 export type Config = Schema.Schema.Type<typeof ConfigSchema>
+
+/**
+ * Schema for preset default configuration.
+ *
+ * Preset defaults can override any Config field except version (which is always 1)
+ * and patterns/boundaries (which come from the preset's rules array).
+ *
+ * @category Schema
+ * @since 0.3.0
+ */
+export class PresetDefaultsSchema
+  extends Schema.Class<PresetDefaultsSchema>("PresetDefaultsSchema")(
+    {
+      paths: Schema.optional(PathsSchema),
+      migrations: Schema.optional(Schema.Array(MigrationSchema)),
+      docs: Schema.optional(DocsGuardSchema),
+      report: Schema.optional(ReportSchema),
+      concurrency: Schema.optional(
+        Schema.Number.pipe(Schema.greaterThan(0), Schema.lessThanOrEqualTo(16))
+      ),
+      extensions: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown }))
+    }
+  )
+{}
+
+/**
+ * TypeScript type for preset defaults.
+ *
+ * @category Types
+ * @since 0.3.0
+ */
+export type PresetDefaults = Schema.Schema.Type<typeof PresetDefaultsSchema>

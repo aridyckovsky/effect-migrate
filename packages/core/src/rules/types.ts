@@ -177,5 +177,19 @@ export interface Preset {
   rules: Rule[]
 
   /** Default configuration overrides */
-  defaults?: Partial<any> // Will be Config type
+  defaults?: {
+    paths?: {
+      root?: string
+      exclude?: string[]
+      include?: string[]
+    }
+    concurrency?: number
+    report?: {
+      failOn?: readonly ("error" | "warning")[]
+      warnOn?: readonly ("error" | "warning")[]
+    }
+    migrations?: ReadonlyArray<unknown>
+    docs?: unknown
+    extensions?: Record<string, unknown>
+  }
 }

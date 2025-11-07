@@ -116,6 +116,16 @@ export { makeBoundaryRule } from "./rules/helpers.js"
  */
 export type { MakeBoundaryRuleInput } from "./rules/helpers.js"
 
+/**
+ * Construct rules from config (both pattern and boundary rules).
+ *
+ * @example
+ * ```ts
+ * const rules = rulesFromConfig(config)
+ * ```
+ */
+export { rulesFromConfig } from "./rules/builders.js"
+
 // ============================================================================
 // Configuration Schema
 // ============================================================================
@@ -169,6 +179,53 @@ export { ReportSchema } from "./schema/Config.js"
  * Main configuration schema class.
  */
 export { ConfigSchema } from "./schema/Config.js"
+
+// ============================================================================
+// Configuration Utilities
+// ============================================================================
+
+/**
+ * Check if a value is a plain object (not an array, null, or class instance).
+ *
+ * @example
+ * ```ts
+ * isPlainObject({})        // => true
+ * isPlainObject([])        // => false
+ * isPlainObject(null)      // => false
+ * ```
+ */
+export { isPlainObject } from "./utils/merge.js"
+
+/**
+ * Deep merge two objects with source taking precedence.
+ *
+ * Recursively merges nested plain objects. Arrays are replaced, not merged.
+ *
+ * @example
+ * ```ts
+ * deepMerge(
+ *   { a: { b: 1 }, tags: ["x"] },
+ *   { a: { c: 2 }, tags: ["y"] }
+ * )
+ * // => { a: { b: 1, c: 2 }, tags: ["y"] }
+ * ```
+ */
+export { deepMerge } from "./utils/merge.js"
+
+/**
+ * Merge preset defaults with user configuration.
+ *
+ * User config always takes precedence over preset defaults.
+ *
+ * @example
+ * ```ts
+ * const merged = mergeConfig(
+ *   { concurrency: 4, paths: { exclude: ["node_modules"] } },
+ *   userConfig
+ * )
+ * ```
+ */
+export { mergeConfig } from "./config/merge.js"
 
 // ============================================================================
 // Configuration Loading
@@ -367,3 +424,43 @@ export { addThread } from "./amp/thread-manager.js"
  * Read all tracked thread references.
  */
 export { readThreads } from "./amp/thread-manager.js"
+
+// ============================================================================
+// Preset Loading
+// ============================================================================
+
+/**
+ * Preset loader service for loading presets via dynamic imports.
+ *
+ * Core package provides npm-only implementation; CLI provides workspace-aware layer.
+ */
+export { PresetLoader, type PresetLoaderService } from "./presets/PresetLoader.js"
+
+/**
+ * Live implementation of PresetLoader for npm package imports.
+ *
+ * @example
+ * ```ts
+ * const program = Effect.gen(function*() {
+ *   const loader = yield* PresetLoader
+ *   const preset = yield* loader.loadPreset("@effect-migrate/preset-basic")
+ *   return preset
+ * }).pipe(Effect.provide(PresetLoaderNpmLive))
+ * ```
+ */
+export { PresetLoaderNpmLive } from "./presets/PresetLoader.js"
+
+/**
+ * Error thrown when preset loading fails.
+ */
+export { PresetLoadError } from "./presets/PresetLoader.js"
+
+/**
+ * Result of loading multiple presets.
+ */
+export type { LoadPresetsResult } from "./presets/PresetLoader.js"
+
+/**
+ * Preset shape with rules and optional defaults.
+ */
+export type { Preset as PresetShape } from "./presets/PresetLoader.js"
