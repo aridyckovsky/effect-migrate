@@ -30,8 +30,13 @@ describe("Schema Version Registry", () => {
       projectRoot: ".",
       timestamp: new Date().toISOString(),
       findings: {
-        byFile: {},
-        byRule: {},
+        rules: [],
+        files: [],
+        results: [],
+        groups: {
+          byFile: {},
+          byRule: {}
+        },
         summary: { errors: 0, warnings: 0, totalFiles: 0, totalFindings: 0 }
       },
       config: {

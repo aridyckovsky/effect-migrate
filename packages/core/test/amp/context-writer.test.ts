@@ -72,6 +72,26 @@ describe("context-writer", () => {
       // Verify other required fields
       expect(index.toolVersion).toBeDefined()
       expect(index.projectRoot).toBe(".")
+
+      // Read and verify audit.json has normalized structure
+      const auditPath = path.join(outputDir, "audit.json")
+      const auditContent = yield* fs.readFileString(auditPath)
+      const audit = yield* Effect.try({
+        try: () => JSON.parse(auditContent) as unknown,
+        catch: e => new Error(String(e))
+      }).pipe(Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)))
+
+      // Verify normalized structure
+      expect(audit.findings.rules).toBeDefined()
+      expect(audit.findings.files).toBeDefined()
+      expect(audit.findings.results).toBeDefined()
+      expect(audit.findings.groups.byFile).toBeDefined()
+      expect(audit.findings.groups.byRule).toBeDefined()
+
+      // Verify normalized structure details
+      expect(audit.findings.rules).toHaveLength(1)
+      expect(audit.findings.results).toHaveLength(1)
+      expect(audit.findings.summary.totalFindings).toBe(1)
     }).pipe(Effect.provide(NodeContext.layer)))
 
   it.scoped("should create valid audit.json and badges.md", () =>
