@@ -4,10 +4,10 @@
     "composite": true,
     "noEmit": false,
     "rootDir": "./src",
-    "outDir": "./build/esm",
-    "tsBuildInfoFile": "./build/.tsbuildinfo"
+    "outDir": "./build/types",
+    "tsBuildInfoFile": "./build/.tsbuildinfo.src"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["**/*.test.ts", "**/__tests__/**", "node_modules"],
-  "references": [{ "path": "../core/tsconfig.build.json" }]
+  "references": [{ "path": "../core/tsconfig.src.json" }]
 }

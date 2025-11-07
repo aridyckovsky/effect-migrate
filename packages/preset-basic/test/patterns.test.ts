@@ -52,8 +52,8 @@ const createMockContext = (files: Record<string, string>): RuleContext => ({
   readFile: file => Effect.succeed(files[file] ?? ""),
   getImportIndex: () =>
     Effect.succeed({
-      getImports: () => [],
-      getImporters: () => []
+      getImports: () => Effect.succeed([]),
+      getImporters: () => Effect.succeed([])
     }),
   config: {},
   logger: {

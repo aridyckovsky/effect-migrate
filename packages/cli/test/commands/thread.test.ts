@@ -14,10 +14,6 @@ const __dirname = dirname(__filename)
 // Test thread ID/URL constants for DRY
 const TEST_THREAD_1_ID = "t-12345678-1234-1234-1234-123456789abc"
 const TEST_THREAD_1_URL = "https://ampcode.com/threads/T-12345678-1234-1234-1234-123456789abc"
-const TEST_THREAD_2_ID = "t-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-const TEST_THREAD_2_URL = "https://ampcode.com/threads/T-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-const TEST_THREAD_3_ID = "t-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-const TEST_THREAD_3_URL = "https://ampcode.com/threads/T-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 describe("Thread Command Integration Tests", () => {
   const testDir = join(__dirname, "..", "..", "test-output")
