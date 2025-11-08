@@ -1,6 +1,6 @@
 {
   "name": "@effect-migrate/cli",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "CLI tool for Effect migration",
   "license": "MIT",
   "repository": {

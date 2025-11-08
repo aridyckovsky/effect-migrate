@@ -1,5 +1,18 @@
 # @effect-migrate/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- [#46](https://github.com/aridyckovsky/effect-migrate/pull/46) [`30ca7cd`](https://github.com/aridyckovsky/effect-migrate/commit/30ca7cd8c32f72a1d68a94bd48c234177e595f11) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Add checkpoints command for audit history navigation. New subcommands: list (show history with deltas), latest (show most recent), show (display specific checkpoint), and diff (compare two checkpoints). Supports --json flag for machine-readable output.
+
+### Patch Changes
+
+- [#43](https://github.com/aridyckovsky/effect-migrate/pull/43) [`caefe69`](https://github.com/aridyckovsky/effect-migrate/commit/caefe6955896554d33b104d78a46f79345c3c86d) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Use dynamic version from package.json via getPackageMeta service instead of hardcoded value. Enhance CLI configuration with executable name, summary, and footer documentation links. Add proper error handling with Effect.catchAll for fatal errors.
+
+- Updated dependencies [[`30ca7cd`](https://github.com/aridyckovsky/effect-migrate/commit/30ca7cd8c32f72a1d68a94bd48c234177e595f11), [`caefe69`](https://github.com/aridyckovsky/effect-migrate/commit/caefe6955896554d33b104d78a46f79345c3c86d)]:
+  - @effect-migrate/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
