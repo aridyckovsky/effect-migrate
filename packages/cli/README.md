@@ -7,15 +7,18 @@ Command-line interface for the Effect migration toolkit.
 
 ## Status
 
-| Command       | Status         | Description               |
-| ------------- | -------------- | ------------------------- |
-| `init`        | 🧪 Dogfooding  | Create configuration file |
-| `audit`       | 🧪 Dogfooding  | Detect migration issues   |
-| `thread add`  | 🧪 Dogfooding  | Track Amp thread URLs     |
-| `thread list` | 🧪 Dogfooding  | List tracked threads      |
-| `metrics`     | 🧪 Dogfooding  | Show migration progress   |
-| `docs`        | 📅 Not Started | Validate documentation    |
-| `--help`      | ✅ Complete    | Show command help         |
+| Command            | Status         | Description                    |
+| ------------------ | -------------- | ------------------------------ |
+| `init`             | 🧪 Dogfooding  | Create configuration file      |
+| `audit`            | 🧪 Dogfooding  | Detect migration issues        |
+| `thread add`       | 🧪 Dogfooding  | Track Amp thread URLs          |
+| `thread list`      | 🧪 Dogfooding  | List tracked threads           |
+| `checkpoints list` | 🧪 Dogfooding  | List audit checkpoint history  |
+| `checkpoints show` | 🧪 Dogfooding  | Show specific checkpoint       |
+| `checkpoints diff` | 🧪 Dogfooding  | Compare two checkpoints        |
+| `metrics`          | 🧪 Dogfooding  | Show migration progress        |
+| `docs`             | 📅 Not Started | Validate documentation         |
+| `--help`           | ✅ Complete    | Show command help              |
 
 ## Installation
 
@@ -51,6 +54,7 @@ effect-migrate thread list
 effect-migrate --help
 effect-migrate audit --help
 effect-migrate thread --help
+effect-migrate checkpoints --help
 ```
 
 ### Global Options
@@ -304,6 +308,137 @@ T-def67890-1234-5678-90ab-cdef12345678
     }
   ]
 }
+```
+
+---
+
+### `checkpoints` — Manage Audit History
+
+View and compare checkpoint history from time-series audit snapshots.
+
+#### `checkpoints list` — List Checkpoint History
+
+Display all audit checkpoints with deltas showing progress over time.
+
+**Usage:**
+
+```bash
+# List all checkpoints
+effect-migrate checkpoints list
+
+# JSON format
+effect-migrate checkpoints list --json
+
+# Custom amp-out directory
+effect-migrate checkpoints list --amp-out .amp/custom
+```
+
+**Options:**
+
+| Option      | Type      | Default               | Description                       |
+| ----------- | --------- | --------------------- | --------------------------------- |
+| `--json`    | `boolean` | `false`               | Output as JSON                    |
+| `--amp-out` | `string`  | `.amp/effect-migrate` | Directory to read checkpoints from |
+
+**Console Output:**
+
+```
+Checkpoint ID            | Timestamp            | Thread      | Errors | Warnings | Info  | Delta
+────────────────────────────────────────────────────────────────────────────────────────────────────
+2025-11-08T14-30-00Z     | 2025-11-08 14:30:00  | T-abc123    | 5      | 12       | 3     | -2 errors, -3 warnings
+2025-11-08T10-00-00Z     | 2025-11-08 10:00:00  | T-def456    | 7      | 15       | 3     | +1 error, +2 warnings
+2025-11-07T16-45-00Z     | 2025-11-07 16:45:00  |             | 6      | 13       | 3     | (initial)
+```
+
+**JSON Output:**
+
+```json
+{
+  "checkpoints": [
+    {
+      "id": "2025-11-08T14-30-00Z",
+      "timestamp": "2025-11-08T14:30:00.000Z",
+      "thread": "T-abc123-uuid",
+      "summary": {
+        "errors": 5,
+        "warnings": 12,
+        "info": 3,
+        "totalFiles": 42,
+        "totalFindings": 20
+      },
+      "delta": {
+        "errors": -2,
+        "warnings": -3,
+        "info": 0,
+        "totalFindings": -5
+      }
+    }
+  ]
+}
+```
+
+---
+
+#### `checkpoints latest` — Show Latest Checkpoint
+
+Display the most recent checkpoint details.
+
+**Usage:**
+
+```bash
+# Show latest checkpoint
+effect-migrate checkpoints latest
+
+# JSON format
+effect-migrate checkpoints latest --json
+```
+
+---
+
+#### `checkpoints show` — Show Specific Checkpoint
+
+Display details for a specific checkpoint by ID.
+
+**Usage:**
+
+```bash
+# Show checkpoint
+effect-migrate checkpoints show 2025-11-08T14-30-00Z
+
+# JSON format
+effect-migrate checkpoints show 2025-11-08T14-30-00Z --json
+```
+
+---
+
+#### `checkpoints diff` — Compare Two Checkpoints
+
+Compare two checkpoints and show what changed between them.
+
+**Usage:**
+
+```bash
+# Compare two checkpoints
+effect-migrate checkpoints diff 2025-11-08T10-00-00Z 2025-11-08T14-30-00Z
+
+# JSON format
+effect-migrate checkpoints diff 2025-11-08T10-00-00Z 2025-11-08T14-30-00Z --json
+```
+
+**Console Output:**
+
+```
+Comparing checkpoints:
+  From: 2025-11-08T10-00-00Z (2025-11-08 10:00:00)
+  To:   2025-11-08T14-30-00Z (2025-11-08 14:30:00)
+
+Changes:
+  Errors:   7 → 5 (-2)
+  Warnings: 15 → 12 (-3)
+  Info:     3 → 3 (0)
+  Total:    25 → 20 (-5)
+
+Progress: ✅ Improved (5 fewer findings)
 ```
 
 ---

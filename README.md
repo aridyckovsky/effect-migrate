@@ -33,6 +33,7 @@ It's co-authored by maintainers and [Amp](https://ampcode.com): the tool surface
 - 🔍 **Pattern Detection** — Identify legacy `async`/`await`, `Promise`, and error handling patterns
 - 🏗️ **Boundary Enforcement** — Maintain clean separation between Effect and legacy code
 - 🤖 **Amp Context Generation** — Writes `index.json`, `audit.json`, `threads.json` for agent ingestion
+- 📊 **Time-Series Checkpoints** — Track migration progress with automatic snapshots and delta computation
 - 🔗 **Thread Continuity** — Track relevant Amp threads with `thread add` to resume work with `read-thread`
 - 📎 **@-mentions First** — Reference `@.amp/effect-migrate/index.json` to load the whole context
 - 🔧 **TypeScript SDK Friendly** — Drive programmatic workflows via Amp's TypeScript SDK
@@ -205,7 +206,8 @@ effect-migrate audit --amp-out .amp/effect-migrate
 **Generated files:**
 
 - `index.json` — Entry point referencing all context files
-- `audit.json` — Detailed violations per file with rule documentation
+- `audit.json` — Latest audit snapshot (symlink to checkpoint)
+- `checkpoints/` — Time-series audit history with deltas
 - `threads.json` — Tracked Amp threads for migration history
 - `metrics.json` — Metrics for the migration process
 
@@ -222,7 +224,20 @@ effect-migrate thread add \
 effect-migrate thread list
 ```
 
-### 5. Use Context in Amp
+### 5. View Checkpoint History
+
+```bash
+# List audit checkpoints with deltas
+effect-migrate checkpoints list
+
+# Show latest checkpoint
+effect-migrate checkpoints latest
+
+# Compare two checkpoints
+effect-migrate checkpoints diff 2025-11-08T10-00-00Z 2025-11-08T11-30-00Z
+```
+
+### 6. Use Context in Amp
 
 In your Amp thread:
 
@@ -435,6 +450,8 @@ See [Amp TypeScript SDK documentation](https://ampcode.com/docs/sdk) for more ex
 - Audit command with console and JSON output
 - Amp context generation (`index.json`, `audit.json`, `threads.json`)
 - Thread tracking (`thread add`, `thread list`)
+- Checkpoint system with time-series audit history
+- Delta computation between consecutive audits
 - Preset loading and rule merging
 - Metrics command for migration progress tracking
 
@@ -446,9 +463,9 @@ See [Amp TypeScript SDK documentation](https://ampcode.com/docs/sdk) for more ex
 
 **Near-term:**
 
+- [x] Migration context checkpoints with time-series history and delta computation
 - [ ] Documentation validation (`docs` command)
 - [ ] Expanded preset coverage (more pattern and boundary rules)
-- [ ] Migration context checkpoints with compression and revision history
 - [ ] Simple metrics monitoring/analytics for migration progress
 
 **Medium-term:**
