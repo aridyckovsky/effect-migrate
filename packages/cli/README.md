@@ -7,18 +7,18 @@ Command-line interface for the Effect migration toolkit.
 
 ## Status
 
-| Command            | Status         | Description                    |
-| ------------------ | -------------- | ------------------------------ |
-| `init`             | 🧪 Dogfooding  | Create configuration file      |
-| `audit`            | 🧪 Dogfooding  | Detect migration issues        |
-| `thread add`       | 🧪 Dogfooding  | Track Amp thread URLs          |
-| `thread list`      | 🧪 Dogfooding  | List tracked threads           |
-| `checkpoints list` | 🧪 Dogfooding  | List audit checkpoint history  |
-| `checkpoints show` | 🧪 Dogfooding  | Show specific checkpoint       |
-| `checkpoints diff` | 🧪 Dogfooding  | Compare two checkpoints        |
-| `metrics`          | 🧪 Dogfooding  | Show migration progress        |
-| `docs`             | 📅 Not Started | Validate documentation         |
-| `--help`           | ✅ Complete    | Show command help              |
+| Command            | Status         | Description                   |
+| ------------------ | -------------- | ----------------------------- |
+| `init`             | 🧪 Dogfooding  | Create configuration file     |
+| `audit`            | 🧪 Dogfooding  | Detect migration issues       |
+| `thread add`       | 🧪 Dogfooding  | Track Amp thread URLs         |
+| `thread list`      | 🧪 Dogfooding  | List tracked threads          |
+| `checkpoints list` | 🧪 Dogfooding  | List audit checkpoint history |
+| `checkpoints show` | 🧪 Dogfooding  | Show specific checkpoint      |
+| `checkpoints diff` | 🧪 Dogfooding  | Compare two checkpoints       |
+| `metrics`          | 🧪 Dogfooding  | Show migration progress       |
+| `docs`             | 📅 Not Started | Validate documentation        |
+| `--help`           | ✅ Complete    | Show command help             |
 
 ## Installation
 
@@ -335,9 +335,9 @@ effect-migrate checkpoints list --amp-out .amp/custom
 
 **Options:**
 
-| Option      | Type      | Default               | Description                       |
-| ----------- | --------- | --------------------- | --------------------------------- |
-| `--json`    | `boolean` | `false`               | Output as JSON                    |
+| Option      | Type      | Default               | Description                        |
+| ----------- | --------- | --------------------- | ---------------------------------- |
+| `--json`    | `boolean` | `false`               | Output as JSON                     |
 | `--amp-out` | `string`  | `.amp/effect-migrate` | Directory to read checkpoints from |
 
 **Console Output:**
