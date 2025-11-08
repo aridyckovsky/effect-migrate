@@ -389,6 +389,52 @@ export { RuleRunner, type RuleRunnerService } from "./services/RuleRunner.js"
  */
 export { RuleRunnerLayer, RuleRunnerLive } from "./services/RuleRunner.js"
 
+/**
+ * Time service for centralized time operations.
+ *
+ * Wraps Clock.Clock to provide consistent timestamps and TestClock compatibility.
+ *
+ * @example
+ * ```ts
+ * import { Time, TimeLive } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const timestamp = yield* Time.now
+ *   const checkpointId = yield* Time.checkpointId
+ *   return { timestamp, checkpointId }
+ * }).pipe(Effect.provide(TimeLive))
+ * ```
+ */
+export {
+  checkpointId,
+  formatCheckpointId,
+  layerLive as TimeLive,
+  now,
+  nowMillis,
+  nowUtc,
+  Time
+} from "./services/Time.js"
+
+/**
+ * ProcessInfo service for Effect-first access to process information.
+ *
+ * Provides safe, testable access to Node.js process globals (cwd, env, etc.)
+ * following Effect-first patterns.
+ *
+ * @example
+ * ```ts
+ * import { ProcessInfo, ProcessInfoLive } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const processInfo = yield* ProcessInfo
+ *   const cwd = yield* processInfo.cwd
+ *   const ampThreadId = yield* processInfo.getEnv("AMP_CURRENT_THREAD_ID")
+ *   return { cwd, ampThreadId }
+ * }).pipe(Effect.provide(ProcessInfoLive))
+ * ```
+ */
+export { ProcessInfo, ProcessInfoLive, type ProcessInfoService } from "./services/ProcessInfo.js"
+
 // ============================================================================
 // Amp Context Generation
 // ============================================================================
