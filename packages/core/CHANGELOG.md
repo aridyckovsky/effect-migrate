@@ -1,5 +1,15 @@
 # @effect-migrate/core
 
+## 0.5.0
+
+### Minor Changes
+
+- [#46](https://github.com/aridyckovsky/effect-migrate/pull/46) [`30ca7cd`](https://github.com/aridyckovsky/effect-migrate/commit/30ca7cd8c32f72a1d68a94bd48c234177e595f11) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Add time-series checkpoint persistence with Time and ProcessInfo services. New checkpoint manager provides automatic thread linking via AMP_CURRENT_THREAD_ID, delta computation between audits, and manifest-based history navigation. Checkpoints use normalized FindingsGroup schema for 40-70% size reduction. New services enable testable date/time and environment variable access.
+
+### Patch Changes
+
+- [#43](https://github.com/aridyckovsky/effect-migrate/pull/43) [`caefe69`](https://github.com/aridyckovsky/effect-migrate/commit/caefe6955896554d33b104d78a46f79345c3c86d) Thanks [@aridyckovsky](https://github.com/aridyckovsky)! - Add getPackageMeta service for dynamic version reading from package.json. Exports PackageMeta interface and getPackageMeta Effect that reads both toolVersion and schemaVersion at runtime, with intelligent path resolution for development and production environments.
+
 ## 0.4.0
 
 ### Minor Changes
