@@ -1,6 +1,6 @@
 # AGENTS.md - @effect-migrate/cli Package
 
-**Last Updated:** 2025-11-03\
+**Last Updated:** 2025-11-08\
 **For:** AI Coding Agents (Amp, Cursor, etc.)
 
 This guide provides package-specific guidance for working on `@effect-migrate/cli`, the CLI interface for effect-migrate. **See [root AGENTS.md](../../AGENTS.md) for general Effect-TS patterns.**
@@ -41,24 +41,23 @@ This guide provides package-specific guidance for working on `@effect-migrate/cl
 ```
 packages/cli/
 ├── src/
+│   ├── amp/               # Amp option helpers
+│   │   ├── normalizeArgs.ts  # Argument normalization for Amp context
+│   │   └── options.ts         # Common Amp-related options (--amp-out)
 │   ├── commands/          # Command implementations
 │   │   ├── audit.ts       # Main audit command
-│   │   ├── metrics.ts     # Metrics reporting
 │   │   ├── docs.ts        # Docs guard checking
 │   │   ├── init.ts        # Project initialization
-│   │   └── thread.ts      # Thread tracking command (add/list) ✅
+│   │   ├── metrics.ts     # Metrics reporting
+│   │   └── thread.ts      # Thread tracking command (add/list)
 │   ├── formatters/        # Output formatters
 │   │   ├── console.ts     # Pretty console output
-│   │   └── json.ts        # JSON output
-│   ├── amp/               # Amp context generation
-│   │   ├── context-writer.ts  # Amp context file writer ✅
-│   │   └── thread-manager.ts  # Thread tracking manager ✅
+│   │   ├── json.ts        # JSON output
+│   │   └── metrics.ts     # Metrics dashboard output
+│   ├── layers/            # CLI-specific layers (PresetLoaderWorkspace)
+│   ├── loaders/           # Config and preset loaders
 │   └── index.ts           # CLI entry point
-└── test/                  # CLI integration tests
-    ├── amp/
-    │   └── thread-manager.test.ts  # Thread manager tests ✅
-    └── commands/
-        └── thread.test.ts          # Thread CLI tests ✅
+└── test/                  # CLI integration tests (if present)
 ```
 
 ---
@@ -69,26 +68,60 @@ packages/cli/
 
 ```typescript
 // src/index.ts
-import { Command } from "@effect/cli"
-import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { Effect } from "effect"
+#!/usr/bin/env node
+
+import { getPackageMeta } from "@effect-migrate/core"
+import * as Command from "@effect/cli/Command"
+import * as HelpDoc from "@effect/cli/HelpDoc"
+import * as Span from "@effect/cli/HelpDoc/Span"
+import * as NodeContext from "@effect/platform-node/NodeContext"
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as Effect from "effect/Effect"
+import { normalizeAmpOutFlag } from "./amp/normalizeArgs.js"
 import { auditCommand } from "./commands/audit.js"
-import { docsCommand } from "./commands/docs.js"
 import { initCommand } from "./commands/init.js"
 import { metricsCommand } from "./commands/metrics.js"
+import { threadCommand } from "./commands/thread.js"
 
-// Root command with subcommands
-const rootCommand = Command.make("effect-migrate", {
-  version: "0.1.0"
-}).pipe(Command.withSubcommands([auditCommand, metricsCommand, docsCommand, initCommand]))
+const mainCommand = Command.make("effect-migrate", {}, () =>
+  Effect.gen(function*() {
+    yield* Effect.log("effect-migrate - Effect migration toolkit")
+    yield* Effect.log("Run with --help for usage information")
+    return 0
+  }))
 
-// Main program
-const program = Command.run(rootCommand, {
-  name: "effect-migrate",
-  version: "0.1.0"
-})
+const cli = mainCommand.pipe(
+  Command.withSubcommands([auditCommand, initCommand, metricsCommand, threadCommand])
+)
 
-// Execute with NodeContext
+// Normalize --amp-out bare flag to --amp-out= for parser compatibility
+const argv = normalizeAmpOutFlag(process.argv)
+
+// Main program with proper Effect composition
+const program = Effect.gen(function*() {
+  // Get package version from package.json
+  const { toolVersion } = yield* getPackageMeta
+
+  // Run CLI with full configuration
+  return yield* Command.run(cli, {
+    name: "effect-migrate",
+    version: toolVersion,
+    executable: "effect-migrate",
+    summary: Span.text("TypeScript migration toolkit using Effect patterns"),
+    footer: HelpDoc.p(
+      "Documentation: https://github.com/aridyckovsky/effect-migrate\n" +
+        "Report issues: https://github.com/aridyckovsky/effect-migrate/issues"
+    )
+  })(argv)
+}).pipe(
+  Effect.catchAll(error =>
+    Effect.gen(function*() {
+      yield* Effect.logError(`Fatal error: ${error}`)
+      return 1
+    })
+  )
+)
+
 program.pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
 ```
 

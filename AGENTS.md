@@ -1,9 +1,37 @@
 # AGENTS.md - effect-migrate Monorepo
 
-**Last Updated:** 2025-11-05\
+**Last Updated:** 2025-11-08\
 **For:** AI Coding Agents (Amp, Cursor, etc.)
 
-This file provides comprehensive guidance for working on the effect-migrate project, a TypeScript monorepo using Effect-TS for building migration tooling.
+This document defines the norms, rules, and conventions you MUST follow when working on the effect-migrate project, a TypeScript monorepo using Effect-TS for building migration tooling.
+
+## Mandatory Requirements
+
+As an AI agent working on this codebase, you MUST:
+
+1. **Effect-First Architecture**: Write ALL business logic using Effect patterns—never use raw Promises or async/await
+2. **Type Safety**: Always export service interfaces from their definition files and use Schema for ALL data validation
+3. **Resource Safety**: Use `Effect.acquireRelease` for ALL resources requiring cleanup; always provide all required layers
+4. **Testing**: Run `pnpm test` before EVERY commit; use `@effect/vitest` for all tests
+5. **Git Workflow**: Use conventional commits (`feat(scope):`, `fix(scope):`), granular commits (one logical change per commit), and proper branch naming (`feat/`, `fix/`, `chore/`)
+6. **CLI Development**: Always use `pnpm cli` for local testing—do NOT build first
+7. **Public API**: Export ONLY what consumers need from `@effect-migrate/core/src/index.ts`—keep internal engines and helpers private
+
+## NEVER Do These Things
+
+**NEVER:**
+
+- ❌ Use raw `Promise`, `async/await`, or `.then()` in business logic (core, CLI packages)
+- ❌ Call `console.log`, `console.error`, or `process.exit` directly
+- ❌ Import from effect barrel packages (`import { Effect } from "effect"`)
+- ❌ Deep-import from `@effect-migrate/core` internals in CLI or presets
+- ❌ Build the CLI to test it—always use `pnpm cli`
+- ❌ Use `try/catch` inside `Effect.gen`
+- ❌ Swallow errors with `catchAll(() => Effect.succeed(...))`
+- ❌ Redefine service interfaces in consumers—import the exported type
+- ❌ Read `package.json` directly—use `getPackageMeta` from core
+- ❌ Commit without running `pnpm test`
+- ❌ Mix multiple unrelated changes in one commit
 
 ---
 
@@ -11,12 +39,12 @@ This file provides comprehensive guidance for working on the effect-migrate proj
 
 - [Project Overview](#project-overview)
 - [Monorepo Structure](#monorepo-structure)
-- [Effect-TS Best Practices](#effect-ts-best-practices)
-- [Development Commands](#development-commands)
-- [Testing](#testing)
-- [Package-Specific Guides](#package-specific-guides)
-- [Anti-Patterns](#anti-patterns)
-- [Resources](#resources)
+- [Effect-TS Mandatory Patterns](#effect-ts-mandatory-patterns)
+- [Development Workflow](#development-workflow)
+- [Testing Requirements](#testing-requirements)
+- [Git Workflow Rules](#git-workflow-rules)
+- [Package-Specific Requirements](#package-specific-requirements)
+- [Reference](#reference)
 
 ---
 
@@ -28,22 +56,14 @@ This file provides comprehensive guidance for working on the effect-migrate proj
 
 - **Language:** TypeScript 5.x (strict mode, exactOptionalPropertyTypes)
 - **Runtime:** Node.js 22.x
-- **Package Manager:** pnpm 9.x
+- **Package Manager:** pnpm 10.x
 - **Build Tool:** TypeScript Compiler (tsc)
 - **Testing:** Vitest with @effect/vitest
 - **Core Dependencies:**
-  - `effect@3.18.4` - Effect runtime and Schema
-  - `@effect/platform@0.92.1` - Cross-platform abstractions
-  - `@effect/platform-node@0.98.4` - Node.js implementations
-  - `@effect/cli@0.71.0` - CLI framework
-
-### Key Principles
-
-1. **Effect-First Architecture**: All business logic uses Effect, no raw Promises
-2. **Type Safety**: Leverage Effect's type system for compile-time guarantees
-3. **Resource Safety**: Use acquireRelease for proper cleanup
-4. **Composability**: Build with Layers and dependency injection
-5. **Testing**: Unit tests for logic, integration tests for workflows
+  - `effect@3.19.2` - Effect runtime and Schema
+  - `@effect/platform@0.93.0` - Cross-platform abstractions
+  - `@effect/platform-node@0.100.0` - Node.js implementations
+  - `@effect/cli@0.72.0` - CLI framework
 
 ---
 
@@ -54,56 +74,93 @@ effect-migrate/
 ├── packages/
 │   ├── core/                  # @effect-migrate/core - Reusable engine
 │   │   ├── src/
-│   │   │   ├── engines/       # PatternEngine, BoundaryEngine, etc. (internal)
-│   │   │   ├── services/      # FileDiscovery, ImportIndex, RuleRunner
+│   │   │   ├── amp/           # Amp context utilities (context-writer, thread-manager, package-meta)
+│   │   │   ├── config/        # Config utilities and defaults
+│   │   │   ├── engines/       # PatternEngine, BoundaryEngine, etc. (INTERNAL)
+│   │   │   ├── presets/       # Built-in presets
 │   │   │   ├── rules/         # Rule types and helpers
 │   │   │   ├── schema/        # Config schema with effect/Schema
+│   │   │   ├── services/      # FileDiscovery, ImportIndex, RuleRunner
+│   │   │   ├── utils/         # Internal utilities
+│   │   │   ├── index.ts       # PUBLIC API (export boundary)
 │   │   │   └── types.ts       # Core domain types
 │   │   └── package.json
 │   ├── cli/                   # @effect-migrate/cli - CLI interface
 │   │   ├── src/
-│   │   │   ├── commands/      # audit, metrics, docs, init commands
+│   │   │   ├── amp/           # Amp option helpers (normalizeArgs, options)
+│   │   │   ├── commands/      # audit, docs, init, metrics, thread
 │   │   │   ├── formatters/    # Console and JSON output
-│   │   │   └── amp/           # Amp context output (MCP-compatible)
+│   │   │   ├── layers/        # CLI-specific layers (PresetLoaderWorkspace)
+│   │   │   ├── loaders/       # Config and preset loaders
+│   │   │   └── index.ts       # CLI entry point
 │   │   └── package.json
 │   └── preset-basic/          # @effect-migrate/preset-basic - Default rules
-│       ├── src/
-│       │   ├── patterns.ts    # Pattern-based rules
-│       │   ├── boundaries.ts  # Architectural boundary rules
-│       │   └── index.ts       # Preset export
-│       └── package.json
-├── examples/                  # Example projects
-├── .vscode/                   # VS Code settings for Effect dev
-├── tsconfig.json              # Base TypeScript config
-├── tsconfig.build.json        # Build config
-├── pnpm-workspace.yaml        # Workspace definition
-└── package.json               # Root workspace config
+│       └── src/
+│           └── index.ts       # Preset export
 ```
 
-### Workspace Dependencies
+### Public API Boundary (MANDATORY)
 
-Packages use `workspace:*` protocol for internal dependencies:
+You MUST respect the core package's public API boundary:
 
-```json
-{
-  "dependencies": {
-    "@effect-migrate/core": "workspace:*"
-  }
-}
-```
+**Export from `@effect-migrate/core/src/index.ts` (ONLY these):**
+
+- ✅ Types consumed by CLI/presets: `Rule`, `RuleResult`, `Config`, `Severity`, etc.
+- ✅ Service tags and interfaces: `FileDiscovery`, `FileDiscoveryService`, `ImportIndex`, etc.
+- ✅ Rule builders: `makePatternRule`, `makeBoundaryRule`, `rulesFromConfig`
+- ✅ Utilities: `getPackageMeta`, `loadConfig`, `defineConfig`, `mergeConfig`
+- ✅ Schema classes: `ConfigSchema`, `PatternRuleSchema`, `BoundaryRuleSchema`, etc.
+- ✅ Amp context utilities: `writeAmpContext`, `addThread`, `readThreads`, `getPackageMeta`, etc.
+
+**NEVER export (keep internal):**
+
+- ❌ Internal engines: `PatternEngine`, `BoundaryEngine`
+- ❌ Internal helpers: file matching, import extraction utilities
+
+**Consumer packages (CLI, presets) MUST:**
+
+- Import ONLY from `@effect-migrate/core` root index
+- NEVER deep-import internal paths like `@effect-migrate/core/services/FileDiscovery`
+
+### Version Management Rules
+
+You MUST follow these versioning practices:
+
+**Package versions:**
+
+- Managed by Changesets
+- Add a changeset for ANY public API or behavior change
+- Commit changesets separately: `chore: add changeset for <feature>`
+
+**Tool version (MANDATORY):**
+
+- CLI MUST read version dynamically using `getPackageMeta` from core
+- NEVER hardcode version strings in CLI commands
+- Example:
+  ```typescript
+  import { getPackageMeta } from "@effect-migrate/core"
+  const { toolVersion, schemaVersion } = yield* getPackageMeta
+  ```
+
+**Schema versions:**
+
+- Track artifact format compatibility (independent of package versions)
+- Defined in `@effect-migrate/core` as `SCHEMA_VERSION`
 
 ---
 
-## Effect-TS Best Practices
+## Effect-TS Mandatory Patterns
 
-### 1. Effect.gen vs pipe
+### 1. Effect.gen vs pipe (REQUIRED)
 
-**Use Effect.gen for sequential async operations:**
+You MUST choose the right pattern for each situation:
+
+**REQUIRED: Use Effect.gen for sequential workflows with multiple dependencies:**
 
 ```typescript
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 
-// ✅ GOOD - Readable, sequential
+// ✅ REQUIRED - Multiple service dependencies
 const program = Effect.gen(function* () {
   const config = yield* loadConfig()
   const files = yield* listFiles(config.paths)
@@ -112,12 +169,14 @@ const program = Effect.gen(function* () {
 })
 ```
 
-**Use pipe for functional composition:**
+**REQUIRED: Use pipe for single-value transformations:**
 
 ```typescript
-import { Effect, pipe } from "effect"
+import { pipe } from "effect/Function"
+import * as Effect from "effect/Effect"
+import * as Console from "effect/Console"
 
-// ✅ GOOD - Composable transformations
+// ✅ REQUIRED - Operator composition on single Effect
 const program = pipe(
   fetchData(),
   Effect.map((data) => data.items),
@@ -126,35 +185,52 @@ const program = pipe(
 )
 ```
 
-### 2. Error Handling with TaggedError
+**FORBIDDEN patterns:**
+
+```typescript
+// ❌ FORBIDDEN - Mixing async/await with Effect
+const bad = async () => {
+  const value = await Effect.runPromise(someEffect)
+  return value
+}
+
+// ❌ FORBIDDEN - Over-nesting Effect.gen
+Effect.gen(function* () {
+  const result = yield* Effect.gen(function* () {
+    return yield* getA()
+  })
+  return result
+})
+```
+
+### 2. Error Handling (MANDATORY)
+
+You MUST define all errors as TaggedError classes:
 
 ```typescript
 import { Data } from "effect"
 
-// Define errors with Data.TaggedError
+// ✅ REQUIRED - Define errors with Data.TaggedError
 class ConfigLoadError extends Data.TaggedError("ConfigLoadError")<{
   readonly path: string
   readonly message: string
 }> {}
 
-class ValidationError extends Data.TaggedError("ValidationError")<{
-  readonly field: string
-  readonly reason: string
-}> {}
-
-// Use in Effects
+// ✅ REQUIRED - Use in Effects with explicit error types
 const loadConfig = (path: string): Effect.Effect<Config, ConfigLoadError> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const content = yield* fs
       .readFileString(path)
       .pipe(
-        Effect.catchAll(() => Effect.fail(new ConfigLoadError({ path, message: "File not found" })))
+        Effect.catchAll(() =>
+          Effect.fail(new ConfigLoadError({ path, message: "File not found" }))
+        )
       )
     return JSON.parse(content)
   })
 
-// Handle specific errors
+// ✅ REQUIRED - Handle specific errors with catchTag
 const program = loadConfig("config.json").pipe(
   Effect.catchTag("ConfigLoadError", (error) =>
     Effect.gen(function* () {
@@ -165,12 +241,32 @@ const program = loadConfig("config.json").pipe(
 )
 ```
 
-### 3. Resource Management
+**NEVER:**
 
 ```typescript
-import { Console, Effect } from "effect"
+// ❌ NEVER - Swallow errors without logging or re-failing
+riskyEffect.pipe(Effect.catchAll(() => Effect.succeed(defaultValue)))
 
-// Use acquireRelease for resources
+// ❌ NEVER - Use try/catch inside Effect.gen
+Effect.gen(function* () {
+  try {
+    const result = yield* riskyOperation()
+    return result
+  } catch (error) {
+    return defaultValue
+  }
+})
+```
+
+### 3. Resource Management (REQUIRED)
+
+You MUST use `acquireRelease` for ALL resources:
+
+```typescript
+import * as Console from "effect/Console"
+import * as Effect from "effect/Effect"
+
+// ✅ REQUIRED - Use acquireRelease for resources
 const withFile = (path: string) =>
   Effect.acquireRelease(
     Effect.gen(function* () {
@@ -181,7 +277,7 @@ const withFile = (path: string) =>
     (file) => Console.log(`Closing ${path}`)
   )
 
-// Use with Effect.scoped
+// ✅ REQUIRED - Use with Effect.scoped
 const program = Effect.scoped(
   Effect.gen(function* () {
     const file = yield* withFile("data.txt")
@@ -191,848 +287,226 @@ const program = Effect.scoped(
 )
 ```
 
-### 4. Services and Layers
+### 4. Services and Layers (MANDATORY)
 
-**IMPORTANT:** Services define behavior contracts (interfaces), NOT data contracts (Schema). Use plain TypeScript interfaces for services, and export them from their definition files.
+You MUST follow these service patterns:
+
+**REQUIRED: Export service interface from service file:**
 
 ```typescript
-import { Context, Effect, Layer } from "effect"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import type { PlatformError } from "@effect/platform/Error"
 
-// ✅ GOOD - Define service interface separately and export it
+// ✅ REQUIRED - Define and export service interface
 export interface FileDiscoveryService {
   readonly listFiles: (
     globs: ReadonlyArray<string>,
     exclude?: ReadonlyArray<string>
   ) => Effect.Effect<string[], PlatformError>
   readonly readFile: (path: string) => Effect.Effect<string, PlatformError>
-  readonly isTextFile: (path: string) => boolean
 }
 
-// ✅ GOOD - Create tag with exported interface
+// ✅ REQUIRED - Create tag with exported interface
 export class FileDiscovery extends Context.Tag("FileDiscovery")<
   FileDiscovery,
   FileDiscoveryService
 >() {}
 
-// ✅ GOOD - Create Live implementation as Layer
+// ✅ REQUIRED - Create Live implementation as Layer
 export const FileDiscoveryLive = Layer.effect(
   FileDiscovery,
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
-
     return {
-      listFiles: (globs, exclude) =>
-        Effect.gen(function* () {
-          // Implementation
-        }),
-      readFile: (path) => fs.readFileString(path),
-      isTextFile: (path) => TEXT_EXTENSIONS.has(path.extname(path))
+      listFiles: (globs, exclude) => Effect.gen(function* () {
+        // Implementation
+      }),
+      readFile: (path) => fs.readFileString(path)
     }
   })
 )
+```
 
-// ✅ GOOD - Import service type in consumers
+**REQUIRED: Import service type in consumers:**
+
+```typescript
+// ✅ REQUIRED - Import the exported type
 import type { FileDiscoveryService } from "../services/FileDiscovery.js"
 
 export const runPatternRules = (
-  rules: ReadonlyArray<Rule>,
-  config: Config,
   discovery: FileDiscoveryService // Use imported type
 ): Effect.Effect<ReadonlyArray<RuleResult>, PlatformError> =>
   Effect.gen(function* () {
     const files = yield* discovery.listFiles(globs, exclude)
     // ...
   })
+```
 
-// ❌ BAD - Don't redefine service interface in consumers
-type FileDiscoveryService = Context.Tag.Service<FileDiscovery> // NEVER do this
+**FORBIDDEN patterns:**
 
-// ❌ BAD - Don't use Schema for service interfaces
+```typescript
+// ❌ FORBIDDEN - Don't redefine service interface
+type FileDiscoveryService = Context.Tag.Service<FileDiscovery>
+
+// ❌ FORBIDDEN - Don't use Schema for service interfaces
 const FileDiscoveryService = Schema.Struct({
-  // WRONG! Schema is for data, not services
-  listFiles: Schema.Function(/* ... */),
-  readFile: Schema.Function(/* ... */)
+  listFiles: Schema.Function(/* ... */)
 })
 ```
 
-**Key Points:**
+### 5. Module Imports (REQUIRED)
 
-- **Export service interface** from the service file (e.g., `FileDiscoveryService`)
-- **Export the tag** as a class extending `Context.Tag(id)<Self, ServiceInterface>()`
-- **Import the service interface type** in consumers, don't redefine it
-- **Use Schema for data models**, not service definitions
-- Service methods return `Effect.Effect<A, E, R>` types
-
-### 5. Schema Validation
+You MUST import from specific module paths, NOT barrel files:
 
 ```typescript
-import { Schema } from "effect"
+// ✅ REQUIRED - Import from specific modules
+import * as Console from "effect/Console"
+import * as Effect from "effect/Effect"
+import { pipe } from "effect/Function"
+import * as Schema from "effect/Schema"
 
-// Define schemas with Schema.Struct
-const ConfigSchema = Schema.Struct({
-  version: Schema.Number,
-  paths: Schema.Struct({
-    root: Schema.String,
-    exclude: Schema.Array(Schema.String).pipe(
-      Schema.withDefault(() => ["node_modules/**", "dist/**"])
-    )
-  }),
-  patterns: Schema.optional(Schema.Array(PatternRuleSchema))
-})
-
-// Decode with Effect
-const decodeConfig = (data: unknown): Effect.Effect<Config, ParseError> =>
-  Schema.decodeUnknown(ConfigSchema)(data)
-
-// Use in program
-const program = Effect.gen(function* () {
-  const rawConfig = yield* fs.readFileString("config.json")
-  const data = JSON.parse(rawConfig)
-  const config = yield* decodeConfig(data).pipe(
-    Effect.catchAll((error) =>
-      Effect.fail(
-        new ConfigLoadError({
-          message: TreeFormatter.formatErrorSync(error)
-        })
-      )
-    )
-  )
-  return config
-})
+// ❌ FORBIDDEN - Barrel imports (hurts tree-shaking)
+import { Console, Effect, pipe, Schema } from "effect"
 ```
 
-### 6. Concurrent Processing
+**Enforcement:** `@effect/eslint-plugin` rule `no-import-from-barrel-package` will catch violations.
+
+### 6. Concurrent Processing (REQUIRED)
+
+You MUST use `Effect.forEach` with concurrency limits:
 
 ```typescript
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 
-// Process items concurrently
+// ✅ REQUIRED - Bounded concurrency for expensive operations
 const processFiles = (files: string[]) =>
   Effect.forEach(
     files,
     (file) =>
       Effect.gen(function* () {
         const content = yield* readFile(file)
-        const result = yield* analyzeContent(content)
-        return { file, result }
+        return yield* analyzeContent(content)
       }),
-    { concurrency: 4 } // Limit concurrent operations
+    { concurrency: 4 } // REQUIRED: limit concurrent operations
   )
 
-// Unbounded concurrency (use with caution)
-const fastProcess = Effect.forEach(files, processFile, {
-  concurrency: "unbounded"
+// ✅ ACCEPTABLE - Unbounded for cheap operations (with caution)
+const listPaths = Effect.forEach(globs, matchGlob, {
+  concurrency: "unbounded" // OK for file listing
 })
 ```
 
-### 7. Platform Services
+**NEVER:**
 
 ```typescript
-import { FileSystem, Path } from "@effect/platform"
-import { Effect } from "effect"
+// ❌ NEVER - Sequential processing of large arrays
+const results: Result[] = []
+for (const item of items) {
+  const result = yield* processItem(item)
+  results.push(result)
+}
+```
+
+### 7. Platform Services (REQUIRED)
+
+You MUST provide `NodeContext.layer` for Node.js programs:
+
+```typescript
+import { FileSystem } from "@effect/platform"
+import * as NodeContext from "@effect/platform-node/NodeContext"
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as Effect from "effect/Effect"
 
 const program = Effect.gen(function* () {
-  // FileSystem service
   const fs = yield* FileSystem.FileSystem
-  const exists = yield* fs.exists("./config.json")
   const content = yield* fs.readFileString("./data.txt")
-  yield* fs.writeFileString("./output.txt", "Hello")
-  yield* fs.makeDirectory("./temp", { recursive: true })
-  const files = yield* fs.readDirectory("./src")
-
-  // Path service
-  const path = yield* Path.Path
-  const joined = path.join("src", "index.ts")
-  const absolute = path.resolve("./file.txt")
-  const dirname = path.dirname("/user/local/bin")
-
-  return { exists, files }
+  return content
 })
 
-// Provide NodeContext.layer for all Node.js services
-import { NodeContext, NodeRuntime } from "@effect/platform-node"
-
+// ✅ REQUIRED - Provide NodeContext.layer
 program.pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
 ```
 
 ---
 
-## Development Commands
+## Development Workflow
 
-### Installation
+### CLI Development (MANDATORY)
 
-```bash
-# Install dependencies for all packages
-pnpm install
-
-# Install in specific package
-pnpm --filter @effect-migrate/core install
-```
-
-### Building
+You MUST run the CLI from source during development:
 
 ```bash
-# Build all packages
-pnpm -r build
-
-# Build specific package
-pnpm --filter @effect-migrate/core build
-
-# Type check without emitting
-pnpm -r typecheck
-
-# Clean build artifacts
-pnpm -r clean
-```
-
-### Testing
-
-```bash
-# Run all tests
-pnpm test
-
-# Run tests in specific package
-pnpm --filter @effect-migrate/core test
-
-# Run tests in watch mode
-pnpm test --watch
-
-# Run tests with coverage
-pnpm test --coverage
-```
-
-### Linting
-
-```bash
-# Lint all packages
-pnpm lint
-
-# Format code
-pnpm format
-
-# Type check
-pnpm check
-```
-
-### CLI Development
-
-**Recommended: Run from source (no build needed)**
-
-```bash
-# Run CLI directly from TypeScript source using tsx
+# ✅ REQUIRED - Run from TypeScript source using tsx
 pnpm cli --version
 pnpm cli audit
 pnpm cli thread list
-pnpm cli init
 ```
 
-**Alternative: Using built version**
+**NEVER:**
 
 ```bash
-# Build CLI first
+# ❌ FORBIDDEN - Building to test changes
 pnpm --filter @effect-migrate/cli build
-
-# Run from built output
 node packages/cli/build/esm/index.js audit
-
-# Or link globally for development
-cd packages/cli
-pnpm link --global
-effect-migrate audit
 ```
 
-### Release & Publishing
+### Pre-Commit Checklist (MANDATORY)
 
-**Uses Changesets** for version management and npm publishing.
+Before EVERY commit, you MUST verify:
 
-**Creating a Release:**
+- [ ] All new/changed code is Effect-first (no raw Promise, async/await)
+- [ ] All dependencies provided via layers (NodeContext, service Live layers)
+- [ ] No `console.log`, `console.error`, or `process.exit` calls
+- [ ] Imports follow module-specific pattern (no barrel imports)
+- [ ] CLI/preset imports ONLY from `@effect-migrate/core` public API
+- [ ] Tests pass: `pnpm test`
+- [ ] Linter passes: `pnpm lint`
+- [ ] Type check passes: `pnpm typecheck`
+- [ ] Conventional commit message format
+- [ ] Changeset added (if public API or behavior changed)
 
-1. **Make your changes** and commit them
-2. **Create a changeset** describing the changes:
-
-   ```bash
-   pnpm changeset
-   ```
-
-   - Select which packages changed
-   - Choose version bump type (major/minor/patch)
-   - Write a description of the changes
-
-3. **Commit the changeset file**:
-
-   ```bash
-   git add .changeset/*.md
-   git commit -m "chore: add changeset for feature X"
-   git push
-   ```
-
-4. **Workflow creates "Version Packages" PR**:
-   - Automatically generated by GitHub Actions
-   - Updates package.json versions
-   - Generates/updates CHANGELOGs
-   - Creates git tags
-
-5. **Review and merge the PR** when ready to publish:
-   - Merging triggers automatic npm publish
-   - Packages are published with provenance
-   - GitHub release is created
-
-**Important Notes:**
-
-- ❌ **Don't run `pnpm changeset version` locally** - let the workflow handle it via PR
-- ❌ **Don't unpublish versions** - blocks republishing for 24 hours
-- ✅ **Only merge "Version Packages" PR when ready to publish**
-- ✅ **Multiple changesets can accumulate before release**
-- ✅ **Releases only happen when you merge the version PR**
-
-**NPM Organization:**
-
-Packages are published under the `@effect-migrate` scope:
-
-- `@effect-migrate/core`
-- `@effect-migrate/cli`
-- `@effect-migrate/preset-basic`
-
-The npm organization must exist at https://www.npmjs.com/org/effect-migrate before publishing.
-
----
-
-## Git and GitHub Workflows
-
-This section defines git branching strategy, commit conventions, and PR workflows for AI agents working on this repository.
-
-**For human developers:** See [CONTRIBUTING.md](./CONTRIBUTING.md) for a more detailed guide.
-
-### Branching Strategy
-
-We use a **simple, linear branching model** with a protected `main` branch:
-
-**Branch Rules:**
-
-1. **`main` branch:**
-   - Always green (all CI checks pass)
-   - Protected (no direct pushes)
-   - Only accepts squash-merge PRs
-   - Linear history maintained
-
-2. **Feature/Fix branches:**
-   - Branch from latest `main`
-   - One purpose per branch
-   - Deleted after merge
-
-### Branch Naming Convention
-
-**Format:** `<type>/<scope>-<description>`
-
-**Types:**
-
-- `feat/` - New features
-- `fix/` - Bug fixes (one bug per branch/PR)
-- `docs/` - Documentation changes
-- `chore/` - Maintenance, dependencies, tooling
-- `test/` - Test additions/updates
-- `refactor/` - Code refactoring (no behavior change)
-
-**Examples:**
+### Build Commands
 
 ```bash
-feat/core-lazy-file-loading
-fix/cli-exit-code-on-error
-docs/contributing-workflow
-chore/deps-update-effect
-test/core-file-discovery
-refactor/cli-output-formatters
-```
-
-**Scopes** (optional but recommended):
-
-- `core` - @effect-migrate/core package
-- `cli` - @effect-migrate/cli package
-- `preset-basic` - @effect-migrate/preset-basic package
-- Omit for repo-wide changes
-
-### Creating a Branch
-
-**ALWAYS start from latest `main`:**
-
-```bash
-# 1. Ensure you're on main
-git checkout main
-
-# 2. Pull latest changes
-git pull origin main
-
-# 3. Create feature branch
-git checkout -b feat/core-file-caching
-
-# 4. Verify branch
-git branch --show-current  # Should show: feat/core-file-caching
-```
-
-### Commit Message Format
-
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-**Format:** `<type>(<scope>): <description>`
-
-**Examples:**
-
-```bash
-feat(core): add lazy file loading for large repositories
-fix(cli): exit with code 1 when audit finds violations
-docs(preset-basic): document no-async-await rule
-test(core): add tests for ImportIndex service
-chore(deps): update @effect/platform to 0.92.2
-refactor(cli): simplify output formatter logic
-```
-
-**Types match branch types:**
-
-- `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `ci`
-
-**Description guidelines:**
-
-- Use imperative mood ("add" not "added")
-- No period at end
-- Keep under 72 characters
-- Be specific and descriptive
-
-### Pull Request Workflow
-
-#### 1. Before Creating PR
-
-**Run all checks locally:**
-
-```bash
-# Type checking
+# Type check all packages
 pnpm build:types
 pnpm typecheck
 
-# Linting
-pnpm lint
-
-# Build
+# Build all packages (for release)
 pnpm build
 
-# Tests
+# Run all tests
 pnpm test
-```
 
-**All must pass before pushing.**
-
-#### 2. Create Changeset (if needed)
-
-**When to create changeset:**
-
-- ✅ New features
-- ✅ Bug fixes
-- ✅ Breaking changes
-- ✅ User-facing dependency updates
-
-**When to skip changeset:**
-
-- ❌ Internal refactors (no behavior change)
-- ❌ Test-only changes
-- ❌ Documentation updates
-- ❌ Dev dependency updates
-
-**Create changeset:**
-
-```bash
-pnpm changeset
-
-# Interactive prompts:
-# 1. Select affected packages
-# 2. Choose bump type (major/minor/patch)
-# 3. Write user-facing summary
-
-# Commit changeset
-git add .changeset/*.md
-git commit -m "chore: add changeset for lazy file loading"
-```
-
-#### 3. Push Branch
-
-```bash
-git push origin feat/core-file-caching
-```
-
-#### 4. Draft PR Description (Required for AI Agents)
-
-**IMPORTANT:** Before opening a PR, AI agents **MUST** create a PR draft document:
-
-```bash
-# Create draft in docs/agents/prs/drafts/
-# Filename should match branch name or feature
-docs/agents/prs/drafts/feat-core-file-caching.md
-```
-
-**Draft must include:**
-
-- Full YAML frontmatter (created, lastUpdated, author, status, thread, audience, tags)
-- Complete PR description following the template below
-- Agent context section with implementation approach and thread URL
-
-See [@docs/agents/AGENTS.md](./docs/agents/AGENTS.md) for PR draft requirements.
-
-#### 5. Open Pull Request
-
-**PR Title:** Use conventional commit format (will become squash commit message)
-
-```
-feat(core): add lazy file loading for large repositories
-```
-
-**PR Description Template:**
-
-````markdown
-## What
-
-Brief summary of what changed.
-
-## Why
-
-Why this change is needed (link to issue/thread if applicable).
-
-## Scope
-
-Which packages are affected:
-
-- `@effect-migrate/core`
-- `@effect-migrate/cli`
-
-## Changeset
-
-- [x] Changeset added
-- [ ] No changeset needed (internal change only)
-
-**Changeset summary:**
-
-> Add lazy file loading to prevent OOM on large repositories with 10k+ files
-
-## Testing
-
-```bash
-pnpm build:types
-pnpm typecheck
+# Lint and format
 pnpm lint
-pnpm build
-pnpm test
-```
-````
-
-**New tests:**
-
-- `packages/core/src/__tests__/file-discovery-lazy.test.ts`
-
-**Updated tests:**
-
-- `packages/core/src/__tests__/file-discovery.test.ts`
-
-## Checklist
-
-- [x] Code follows Effect-TS best practices
-- [x] TypeScript strict mode passes
-- [x] All tests pass
-- [x] Linter passes
-- [x] Build succeeds
-- [x] Changeset created
-- [x] Documentation updated
-
-## Agent Context (for AI agents)
-
-**Implementation approach:**
-
-- Used Effect.acquireRelease for resource management
-- Implemented lazy iteration with Effect.forEach({ concurrency: 1 })
-- Added FileDiscoveryService.listFilesLazy method
-
-**Amp Thread(s):**
-
-- https://ampcode.com/threads/T-a38f981d-52da-47b1-818c-fbaa9ab56e0c (example)
-
-**Related docs:**
-
-- @docs/agents/plans/lazy-file-loading.md
-
-````
-
-#### 6. Address CI Feedback
-
-**If CI fails:**
-
-```bash
-# Pull latest changes
-git pull origin main
-
-# Fix issues locally
-# ... make fixes ...
-
-# Run checks again
-pnpm build:types && pnpm typecheck && pnpm lint && pnpm build && pnpm test
-
-# Commit fixes
-git add .
-git commit -m "fix: address CI feedback"
-git push origin feat/core-file-caching
-````
-
-#### 7. Respond to Review Comments
-
-- Address all comments
-- Push new commits (don't force-push during review)
-- Mark conversations as resolved when fixed
-
-#### 8. Merge (Maintainer Action)
-
-- Maintainers will **squash-merge** into `main`
-- PR title becomes commit message
-- Branch automatically deleted
-
-### AI Agent Restrictions
-
-**As an AI agent (Amp), you MUST follow these rules:**
-
-#### Rule 1: One Bug Per PR
-
-**When fixing multiple bugs:**
-
-- ❌ **NEVER combine multiple bug fixes in one PR**
-- ✅ **Create separate branch + PR for each bug**
-- ✅ **Work on multiple PRs in parallel if needed**
-
-**Example:**
-
-```bash
-# Bug 1: CLI exit code
-git checkout -b fix/cli-exit-code-on-error
-# ... implement fix ...
-git commit -m "fix(cli): exit with code 1 on audit violations"
-git push origin fix/cli-exit-code-on-error
-# Open PR #1
-
-# Bug 2: Import resolution (separate PR)
-git checkout main
-git pull origin main
-git checkout -b fix/core-import-resolution
-# ... implement fix ...
-git commit -m "fix(core): resolve imports with .js extension"
-git push origin fix/core-import-resolution
-# Open PR #2
-```
-
-#### Rule 2: Never Push to `main` Directly
-
-**Always use PRs:**
-
-```bash
-# ❌ NEVER do this
-git checkout main
-git commit -m "fix: something"
-git push origin main
-
-# ✅ ALWAYS do this
-git checkout -b fix/something
-git commit -m "fix: something"
-git push origin fix/something
-# Then open PR
-```
-
-#### Rule 3: Keep PRs Focused
-
-**One logical change per PR:**
-
-- ✅ One feature
-- ✅ One bug fix
-- ✅ One refactor
-- ❌ Multiple unrelated changes
-
-**Reasoning:** Makes review easier, enables faster merges, simplifies rollback if needed.
-
-#### Rule 4: Always Run Checks Before Pushing
-
-**Non-negotiable command sequence:**
-
-```bash
-pnpm build:types && \
-pnpm typecheck && \
-pnpm lint && \
-pnpm build && \
-pnpm test
-```
-
-**If any fail, fix before pushing.**
-
-#### Rule 5: Include Agent Context in PRs
-
-**Add "Agent Context" section to every PR:**
-
-```markdown
-## Agent Context (for AI agents)
-
-**Implementation approach:**
-
-- Brief summary of how you implemented the feature
-- Key design decisions
-- Effect patterns used
-
-**Amp Thread(s):**
-
-- https://ampcode.com/threads/T-a38f981d-52da-47b1-818c-fbaa9ab56e0c (example)
-
-**Related docs:**
-
-- @docs/agents/plans/feature-name.md (if applicable)
-```
-
-**Purpose:** Helps future AI agents understand implementation context.
-
-### Working with Multiple Parallel PRs
-
-**Scenario:** You're asked to fix 3 bugs discovered in an audit.
-
-**Workflow:**
-
-```bash
-# Fix 1: CLI exit code
-git checkout main
-git pull origin main
-git checkout -b fix/cli-exit-code
-# ... implement, test, commit ...
-git push origin fix/cli-exit-code
-# Open PR #1
-
-# Fix 2: Config validation (separate branch)
-git checkout main
-git pull origin main
-git checkout -b fix/core-config-validation
-# ... implement, test, commit ...
-git push origin fix/core-config-validation
-# Open PR #2
-
-# Fix 3: Import resolution (separate branch)
-git checkout main
-git pull origin main
-git checkout -b fix/core-import-resolution
-# ... implement, test, commit ...
-git push origin fix/core-import-resolution
-# Open PR #3
-```
-
-**Key points:**
-
-- Each PR is independent
-- Each can be reviewed/merged separately
-- Each has its own changeset
-- All branch from latest `main`
-
-### Handling Merge Conflicts
-
-**If `main` moves while your PR is open:**
-
-```bash
-# 1. Fetch latest
-git fetch origin
-
-# 2. Rebase your branch onto main
-git checkout feat/your-feature
-git rebase origin/main
-
-# 3. Resolve conflicts if any
-# ... fix conflicts in files ...
-git add <resolved-files>
-git rebase --continue
-
-# 4. Run checks again
-pnpm build:types && pnpm typecheck && pnpm lint && pnpm build && pnpm test
-
-# 5. Force-push (safe during rebase)
-git push origin feat/your-feature --force-with-lease
-```
-
-### Recording Implementation Threads
-
-**Note:** The `effect-migrate thread` subcommands are planned and not yet available. Until implemented, capture Amp thread URL(s) manually in the PR description's "Agent Context" section.
-
-**Optional but recommended:**
-
-If you want to record the Amp thread where implementation happened:
-
-```bash
-# Using the thread command (if implemented)
-effect-migrate thread add \
-  --url https://ampcode.com/threads/T-a38f981d-52da-47b1-818c-fbaa9ab56e0c \
-  --tags "feature,core,lazy-loading" \
-  --scope "packages/core/src/**"
-
-# Commit the thread metadata
-git add .amp/threads.json
-git commit -m "chore: record implementation thread"
-```
-
-This creates/updates `.amp/threads.json` for future reference and context.
-
-### Summary: Complete PR Workflow Example
-
-**Example: Adding JSON output formatter to CLI**
-
-```bash
-# 1. Start from main
-git checkout main
-git pull origin main
-
-# 2. Create branch
-git checkout -b feat/cli-json-formatter
-
-# 3. Implement feature
-# ... edit files ...
-
-# 4. Run all checks
-pnpm build:types
-pnpm typecheck
-pnpm lint
-pnpm build
-pnpm test
-
-# 5. Create changeset
-pnpm changeset
-# Select: @effect-migrate/cli
-# Bump: minor
-# Summary: "Add JSON output format to audit and metrics commands"
-
-# 6. Commit changes
-git add .
-git commit -m "feat(cli): add JSON output formatter"
-
-# 7. Commit changeset
-git add .changeset/*.md
-git commit -m "chore: add changeset for JSON formatter"
-
-# 8. Push branch
-git push origin feat/cli-json-formatter
-
-# 9. Open PR on GitHub
-# Title: feat(cli): add JSON output formatter
-# Fill out all required sections in description
-# Include "Agent Context" section with thread URL
-
-# 10. Wait for CI ✅
-# 11. Address review comments if any
-# 12. Maintainer squash-merges to main
+pnpm format
 ```
 
 ---
 
-## Testing
+## Testing Requirements
 
-### Testing with @effect/vitest
+### MANDATORY Testing Practices
+
+You MUST:
+
+- Write tests for ALL new business logic
+- Use `@effect/vitest` for Effect-based tests
+- Test both success and error paths
+- Run `pnpm test` before committing
+
+### Test Patterns (REQUIRED)
+
+**Effect tests:**
 
 ```typescript
 import { expect, it } from "@effect/vitest"
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 
-// Basic Effect test
+// ✅ REQUIRED - Basic Effect test
 it.effect("should process correctly", () =>
   Effect.gen(function* () {
     const result = yield* processData({ input: "test" })
@@ -1040,38 +514,21 @@ it.effect("should process correctly", () =>
   })
 )
 
-// Test with Exit
+// ✅ REQUIRED - Test error handling
 it.effect("should handle errors", () =>
   Effect.gen(function* () {
     const result = yield* Effect.exit(riskyOperation())
     expect(Exit.isFailure(result)).toBe(true)
   })
 )
-
-// Scoped test (for resources)
-it.scoped("should manage resources", () =>
-  Effect.gen(function* () {
-    const resource = yield* acquireResource()
-    expect(resource.isOpen).toBe(true)
-    // Resource automatically released after test
-  })
-)
-
-// Live test (real environment)
-it.live("should use real clock", () =>
-  Effect.gen(function* () {
-    const now = yield* Clock.currentTimeMillis
-    expect(now).toBeGreaterThan(0)
-  })
-)
 ```
 
-### Layer Testing
+**Layer tests:**
 
 ```typescript
 import { layer } from "@effect/vitest"
 
-// Test with provided layer
+// ✅ REQUIRED - Test with provided layer
 layer(FileDiscoveryLive)("FileDiscovery tests", (it) => {
   it.effect("should list files", () =>
     Effect.gen(function* () {
@@ -1083,16 +540,17 @@ layer(FileDiscoveryLive)("FileDiscovery tests", (it) => {
 })
 ```
 
-### Mocking Services
+**Mocking services:**
 
 ```typescript
-// Create mock layer
+import * as Layer from "effect/Layer"
+
+// ✅ REQUIRED - Create mock for I/O-heavy services
 const FileDiscoveryMock = Layer.succeed(FileDiscovery, {
   listFiles: (pattern) => Effect.succeed(["file1.ts", "file2.ts"]),
   readFile: (path) => Effect.succeed(`mock content of ${path}`)
 })
 
-// Use in test
 it.effect("should use mock", () =>
   Effect.gen(function* () {
     const discovery = yield* FileDiscovery
@@ -1104,460 +562,268 @@ it.effect("should use mock", () =>
 
 ---
 
-## Package-Specific Guides
+## Git Workflow Rules
+
+### Commit Rules (MANDATORY)
+
+You MUST follow Conventional Commits:
+
+**Format:** `<type>(<scope>): <description>`
+
+**Allowed types:**
+
+- `feat` - New features
+- `fix` - Bug fixes
+- `chore` - Maintenance (deps, changesets, tooling)
+- `refactor` - Code refactoring (no behavior change)
+- `test` - Test additions/updates
+- `docs` - Documentation changes
+- `ci` - CI/CD changes
+
+**Examples:**
+
+```bash
+# ✅ REQUIRED - Correct conventional commits
+feat(core): add lazy file loading for large repositories
+fix(cli): exit with code 1 when audit finds violations
+chore: add changeset for cli JSON formatter
+docs(preset-basic): document no-async-await rule
+test(core): add tests for ImportIndex service
+```
+
+**Granularity (MANDATORY):**
+
+- One logical change per commit
+- Include tests and code together
+- Commit changesets separately with `chore:` prefix
+
+### Branch Naming (MANDATORY)
+
+You MUST use this format: `<type>/<scope>-<description>`
+
+**Examples:**
+
+```bash
+# ✅ REQUIRED - Correct branch names
+feat/core-lazy-file-loading
+fix/cli-exit-code-on-error
+chore/deps-update-effect
+test/core-file-discovery
+refactor/cli-output-formatters
+```
+
+**NEVER:**
+
+```bash
+# ❌ FORBIDDEN - Vague or non-conforming branch names
+feature-branch
+bugfix
+my-changes
+```
+
+### Changeset Workflow (MANDATORY)
+
+You MUST add a changeset for:
+
+- ✅ New features
+- ✅ Bug fixes
+- ✅ Breaking changes
+- ✅ Public API changes
+
+**Create changeset:**
+
+```bash
+pnpm changeset
+
+# Interactive prompts:
+# 1. Select affected packages
+# 2. Choose bump type (major/minor/patch)
+# 3. Write user-facing summary
+
+# Commit changeset separately
+git add .changeset/*.md
+git commit -m "chore: add changeset for lazy file loading"
+```
+
+**Skip changeset for:**
+
+- ❌ Internal refactors (no behavior change)
+- ❌ Test-only changes
+- ❌ Documentation updates
+- ❌ Dev dependency updates
+
+### Complete PR Workflow Example
+
+```bash
+# 1. Start from latest main
+git checkout main
+git pull origin main
+
+# 2. Create feature branch
+git checkout -b feat/cli-json-formatter
+
+# 3. Implement feature (granular commits)
+git add packages/cli/src/formatters/json.ts
+git commit -m "feat(cli): add JSON output formatter"
+
+git add packages/cli/src/__tests__/formatters/json.test.ts
+git commit -m "test(cli): add tests for JSON formatter"
+
+# 4. Create changeset
+pnpm changeset
+git add .changeset/*.md
+git commit -m "chore: add changeset for cli JSON formatter"
+
+# 5. Run pre-commit checks
+pnpm build:types
+pnpm typecheck
+pnpm lint
+pnpm test
+
+# 6. Push branch
+git push origin feat/cli-json-formatter
+
+# 7. Open PR with proper title and description
+```
+
+---
+
+## Package-Specific Requirements
 
 ### @effect-migrate/core
 
-**See:** [packages/core/AGENTS.md](./packages/core/AGENTS.md)
+**See:** [packages/core/AGENTS.md](./packages/core/AGENTS.md) for detailed rules.
 
-**Key Concerns:**
+You MUST:
 
-- Service implementation with proper Layer composition
-- Schema validation for user config
-- Lazy file loading to avoid OOM on large repos
-- Concurrent processing with configurable limits
-- Platform-agnostic code (use @effect/platform abstractions)
+- Use `@effect/platform` abstractions (NOT Node.js APIs directly)
+- Implement lazy file loading (never load all files upfront)
+- Provide concurrency limits (default 4) for expensive operations
+- Export service interfaces from their definition files
+- Keep internal engines private (not exported from index.ts)
 
 ### @effect-migrate/cli
 
-**See:** [packages/cli/AGENTS.md](./packages/cli/AGENTS.md)
+**See:** [packages/cli/AGENTS.md](./packages/cli/AGENTS.md) for detailed rules.
 
-**Key Concerns:**
+You MUST:
 
-- @effect/cli Command definitions
-- Options and Args validation
-- Error handling and exit codes
-- Output formatting (console vs JSON)
-- Amp context generation (MCP-compatible)
+- Provide `NodeContext.layer` for ALL command execution paths
+- Return numeric exit codes from handlers (NEVER `process.exit`)
+- Use `Console` service (NEVER `console.log`)
+- Support `--json` flag for machine-readable output
+- Support `--amp-out` for Amp context generation
+- Use `getPackageMeta` for version info (NEVER read package.json directly)
 
 ### @effect-migrate/preset-basic
 
-**See:** [packages/preset-basic/AGENTS.md](./packages/preset-basic/AGENTS.md)
+You MUST:
 
-**Key Concerns:**
-
-- Rule creation using makePatternRule and makeBoundaryRule helpers
-- Conservative defaults (favor precision over recall)
-- Clear documentation for each rule
-- Testing rules against fixtures
+- Use `makePatternRule` and `makeBoundaryRule` helpers from core
+- Export presets with rules array and optional config defaults
+- NEVER define services (presets only define rules)
 
 ---
 
-## Anti-Patterns
+## Reference
 
-### ❌ Don't: Import from Barrel Files
+### TypeScript Configuration
 
-```typescript
-// ❌ BAD - Hurts tree-shaking
-import { Console, Effect, pipe } from "effect"
+All packages use strict TypeScript settings with `exactOptionalPropertyTypes`:
 
-// ✅ GOOD - Import from specific modules
-import * as Console from "effect/Console"
-import * as Effect from "effect/Effect"
-import { pipe } from "effect/Function"
-```
-
-**Why:** Barrel imports prevent tree-shaking and increase bundle size.
-
-**Enforcement:** `@effect/eslint-plugin` rule `no-import-from-barrel-package`
-
-### ❌ Don't: Mix Promise and Effect
+**Handling optional properties:**
 
 ```typescript
-// ❌ BAD - Lost error handling and interruption
-const bad = async () => {
-  const value = await Effect.runPromise(someEffect)
-  return value
-}
-
-// ✅ GOOD - Stay in Effect
-const good = Effect.gen(function* () {
-  const value = yield* someEffect
-  return value
-})
-```
-
-### ❌ Don't: Ignore Error Types
-
-```typescript
-// ❌ BAD - Lost type information
-const bad = riskyEffect.pipe(Effect.catchAll(() => Effect.succeed(defaultValue)))
-
-// ✅ GOOD - Handle specific errors
-const good = riskyEffect.pipe(
-  Effect.catchTag("NetworkError", () => Effect.succeed(cachedValue)),
-  Effect.catchTag("ValidationError", (e) => Effect.fail(new UserError({ message: e.reason })))
-)
-```
-
-### ❌ Don't: Use `any` or Type Assertions
-
-```typescript
-// ❌ BAD
-const bad = Effect.succeed(data as User)
-
-// ✅ GOOD - Use Schema validation
-const good = Schema.decodeUnknown(UserSchema)(data)
-```
-
-### ❌ Don't: Forget to Provide Dependencies
-
-```typescript
-// ❌ BAD - Runtime error
-const program = Effect.gen(function* () {
-  const db = yield* Database
-  return yield* db.query("SELECT * FROM users")
-})
-Effect.runPromise(program) // Error: Missing Database!
-
-// ✅ GOOD - Provide all layers
-Effect.runPromise(program.pipe(Effect.provide(DatabaseLive)))
-```
-
-### ❌ Don't: Process Large Arrays Sequentially
-
-```typescript
-// ❌ BAD - Slow sequential processing
-const bad = Effect.gen(function* () {
-  const results = []
-  for (const item of items) {
-    const result = yield* processItem(item)
-    results.push(result)
-  }
-  return results
-})
-
-// ✅ GOOD - Concurrent processing with limit
-const good = Effect.forEach(items, processItem, { concurrency: 4 })
-```
-
-### ❌ Don't: Use try/catch Inside Effect.gen
-
-```typescript
-// ❌ BAD - Breaks Effect error handling
-const bad = Effect.gen(function* () {
-  try {
-    const result = yield* riskyOperation()
-    return result
-  } catch (error) {
-    return defaultValue
-  }
-})
-
-// ✅ GOOD - Use Effect combinators
-const good = Effect.gen(function* () {
-  const result = yield* riskyOperation().pipe(Effect.catchAll(() => Effect.succeed(defaultValue)))
-  return result
-})
-```
-
-### ❌ Don't: Redefine Service Types in Consumers
-
-```typescript
-// ❌ BAD - Redefining service interface in consumer
-// packages/core/src/engines/PatternEngine.ts
-export interface FileDiscoveryService {
-  readonly listFiles: (globs: string[]) => Effect.Effect<string[]>
-  readonly readFile: (path: string) => Effect.Effect<string>
-}
-
-// ❌ BAD - Using Context.Tag.Service<> to extract type
-import { FileDiscovery } from "../services/FileDiscovery.js"
-type FileDiscoveryService = Context.Tag.Service<FileDiscovery>
-
-// ✅ GOOD - Import the service type from the service file
-import type { FileDiscoveryService } from "../services/FileDiscovery.js"
-
-export const runPatternRules = (
-  discovery: FileDiscoveryService // Type imported from source
-) => Effect.gen(/* ... */)
-```
-
-**Why:** Service interfaces should be defined once in the service file and exported. Consumers should import the type, not redefine it. This follows DRY principles and ensures type consistency.
-
-### ❌ Don't: Use Schema for Service Interfaces
-
-```typescript
-// ❌ BAD - Schema for service definition
-const FileDiscoveryService = Schema.Struct({
-  listFiles: Schema.Function(
-    Schema.Tuple(Schema.Array(Schema.String)),
-    Schema.Array(Schema.String)
-  ),
-  readFile: Schema.Function(Schema.Tuple(Schema.String), Schema.String)
-})
-
-// ✅ GOOD - Plain TypeScript interface for services
-export interface FileDiscoveryService {
-  readonly listFiles: (globs: string[]) => Effect.Effect<string[], PlatformError>
-  readonly readFile: (path: string) => Effect.Effect<string, PlatformError>
-}
-
-// ✅ GOOD - Use Schema for data models
-const User = Schema.Struct({
-  id: Schema.Number,
-  name: Schema.String,
-  email: Schema.String
-})
-type User = Schema.Schema.Type<typeof User>
-```
-
-**Why:** Schema is for data contracts (validation/transformation), not behavior contracts. Services define operations; Schema validates data flowing through those operations.
-
----
-
-## TypeScript Configuration
-
-### Strict Settings
-
-All packages use strict TypeScript settings:
-
-```json
-{
-  "compilerOptions": {
-    "strict": true,
-    "exactOptionalPropertyTypes": true,
-    "noUnusedLocals": true,
-    "noImplicitReturns": false,
-    "moduleDetection": "force",
-    "moduleResolution": "NodeNext",
-    "module": "NodeNext",
-    "target": "ES2022",
-    "lib": ["ES2022"]
-  }
-}
-```
-
-### exactOptionalPropertyTypes
-
-This setting requires handling optional properties carefully:
-
-```typescript
-// ❌ BAD - Type error with exactOptionalPropertyTypes
+// ❌ FORBIDDEN - Violates exactOptionalPropertyTypes
 const result: RuleResult = {
   id: "rule-1",
-  message: "Issue found",
-  docsUrl: input.docsUrl // string | undefined
+  message: "Issue",
+  docsUrl: maybeUrl // string | undefined
 }
 
-// ✅ GOOD - Conditionally include optional props
+// ✅ REQUIRED - Conditional inclusion
 const result: RuleResult = {
   id: "rule-1",
-  message: "Issue found",
-  ...(input.docsUrl && { docsUrl: input.docsUrl })
+  message: "Issue",
+  ...(maybeUrl && { docsUrl: maybeUrl })
 }
 
-// ✅ ALSO GOOD - Spread with type guard
+// ✅ ALSO ACCEPTABLE - Type guard approach
 const result: RuleResult = {
   id: "rule-1",
-  message: "Issue found"
+  message: "Issue"
 }
-if (input.docsUrl) {
-  result.docsUrl = input.docsUrl
-}
-```
-
----
-
-## Development Tools
-
-### VS Code Setup
-
-**Required Extensions:**
-
-- TypeScript and JavaScript Language Features (built-in)
-- ESLint
-- Prettier (optional, we use dprint via ESLint)
-
-**Workspace Settings** (`.vscode/settings.json`):
-
-```json
-{
-  "typescript.tsdk": "./node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
-  }
+if (maybeUrl !== undefined) {
+  result.docsUrl = maybeUrl
 }
 ```
 
-### Effect Language Service
+### Effect Patterns Cheat Sheet
 
-**Already configured in** `tsconfig.json`:
+**File Operations:**
 
-```json
-{
-  "compilerOptions": {
-    "plugins": [
-      {
-        "name": "@effect/language-service",
-        "namespaceImportPackages": ["effect", "@effect/*"]
-      }
-    ]
-  }
-}
+```typescript
+import { FileSystem } from "@effect/platform"
+
+const fs = yield* FileSystem.FileSystem
+const content = yield* fs.readFileString("file.txt")
+yield* fs.writeFileString("output.txt", content)
+const exists = yield* fs.exists("file.txt")
 ```
 
-**Features:**
+**Path Operations:**
 
-- 75+ diagnostics for Effect patterns
-- Quickinfo with extended type parameters
-- Refactors (async → Effect.gen, Layer Magic)
-- Auto-completions for Effect combinators
+```typescript
+import { Path } from "@effect/platform"
 
-**Enable in Build:**
-
-```bash
-# Run once after installing dependencies
-pnpm effect-language-service patch
+const path = yield* Path.Path
+const joined = path.join("src", "index.ts")
+const absolute = path.resolve("./file.txt")
 ```
 
-### ESLint Plugin
+**Schema Validation:**
 
-**Configured in** `eslint.config.mjs`:
+```typescript
+import * as Schema from "effect/Schema"
 
-```javascript
-import * as effectEslint from "@effect/eslint-plugin"
+const ConfigSchema = Schema.Struct({
+  version: Schema.Number,
+  paths: Schema.Struct({
+    exclude: Schema.Array(Schema.String).pipe(
+      Schema.withDefault(() => ["node_modules/**"])
+    )
+  })
+})
 
-export default [
-  ...effectEslint.configs.dprint,
-  {
-    plugins: { "@effect": effectEslint },
-    rules: {
-      "@effect/no-import-from-barrel-package": [
-        "error",
-        {
-          packageNames: ["effect", "@effect/platform", "@effect/cli"]
-        }
-      ]
-    }
-  }
-]
+const config = yield* Schema.decodeUnknown(ConfigSchema)(data)
 ```
 
----
+### Resources
 
-## Resources
-
-### Official Documentation
+**Official Documentation:**
 
 - **Effect Website:** https://effect.website
 - **API Docs:** https://effect-ts.github.io/effect
 - **Discord Community:** https://discord.gg/effect-ts
 
-### Effect Packages
+**Effect Packages:**
 
-- **effect:** Core library with Effect runtime, Schema, and primitives
-- **@effect/platform:** Cross-platform abstractions (FileSystem, Path, Command)
-- **@effect/platform-node:** Node.js implementations
-- **@effect/cli:** CLI framework with Options, Args, Commands
-- **@effect/vitest:** Testing utilities for Effect
-- **@effect/eslint-plugin:** ESLint rules for Effect patterns
-- **@effect/language-service:** TypeScript language service plugin
+- `effect` - Core runtime and Schema
+- `@effect/platform` - Cross-platform abstractions
+- `@effect/platform-node` - Node.js implementations
+- `@effect/cli` - CLI framework
+- `@effect/vitest` - Testing utilities
+- `@effect/eslint-plugin` - ESLint rules for Effect patterns
 
-### Internal Documentation
+**Internal Documentation:**
 
-- [packages/core/AGENTS.md](./packages/core/AGENTS.md) - Core package guide
-- [packages/cli/AGENTS.md](./packages/cli/AGENTS.md) - CLI package guide
-- [packages/preset-basic/AGENTS.md](./packages/preset-basic/AGENTS.md) - Preset package guide
-
-### Reference Projects
-
-- **Effect Monorepo:** https://github.com/Effect-TS/effect
-- **Effect Examples:** https://github.com/Effect-TS/examples
-
----
-
-## Common Patterns Cheat Sheet
-
-### File Operations
-
-```typescript
-import { FileSystem } from "@effect/platform"
-
-const fs = yield * FileSystem.FileSystem
-
-// Read
-const content = yield * fs.readFileString("file.txt")
-const buffer = yield * fs.readFile("file.bin")
-
-// Write
-yield * fs.writeFileString("output.txt", content)
-
-// Check existence
-const exists = yield * fs.exists("file.txt")
-
-// Directory
-yield * fs.makeDirectory("./dist", { recursive: true })
-const files = yield * fs.readDirectory("./src")
-
-// Stats
-const stat = yield * fs.stat("file.txt")
-if (stat.type === "File") {
-  /* ... */
-}
-```
-
-### Path Operations
-
-```typescript
-import { Path } from "@effect/platform"
-
-const path = yield * Path.Path
-
-const joined = path.join("src", "components", "Button.tsx")
-const absolute = path.resolve("./file.txt")
-const relative = path.relative("/a/b/c", "/a/d/e")
-const dirname = path.dirname("/user/local/bin/node")
-const basename = path.basename("/file.txt", ".txt")
-const extname = path.extname("file.ts") // ".ts"
-```
-
-### Schema Patterns
-
-```typescript
-import { Schema } from "effect"
-
-// Basic types
-const User = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  age: Schema.Number,
-  email: Schema.String.pipe(Schema.pattern(/^[^\s@]+@/))
-})
-
-// Optional with default
-const Config = Schema.Struct({
-  port: Schema.Number.pipe(Schema.withDefault(() => 3000)),
-  host: Schema.optional(Schema.String)
-})
-
-// Union types
-const Status = Schema.Literal("pending", "success", "error")
-
-// Arrays
-const Tags = Schema.Array(Schema.String)
-
-// Transformations
-const DateFromString = Schema.transformOrFail(Schema.String, Schema.DateFromSelf, {
-  decode: (s) => {
-    const date = new Date(s)
-    return isNaN(date.getTime())
-      ? Effect.fail(new ParseError({ message: "Invalid date" }))
-      : Effect.succeed(date)
-  },
-  encode: (date) => Effect.succeed(date.toISOString())
-})
-
-// Decoding
-const decode = Schema.decodeUnknown(User)
-const result = yield * decode(data)
-```
+- [packages/core/AGENTS.md](./packages/core/AGENTS.md) - Core package rules
+- [packages/cli/AGENTS.md](./packages/cli/AGENTS.md) - CLI package rules
+- [packages/preset-basic/AGENTS.md](./packages/preset-basic/AGENTS.md) - Preset package rules
 
 ---
 
 **Last Updated:** 2025-11-08\
 **Maintainer:** Ari Dyckovsky\
-**See also:** [README](README.md)
+**See also:** [README](README.md)\
 **License:** MIT
