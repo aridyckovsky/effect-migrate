@@ -11,7 +11,6 @@
 
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
-import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { pathToFileURL } from "node:url"
@@ -169,7 +168,7 @@ export const loadConfig = (configPath: string) =>
       )
     )
 
-    yield* Console.log(`✓ Loaded config from ${configPath}`)
+    yield* Effect.logInfo(`✓ Loaded config from ${configPath}`)
 
     return config
   })

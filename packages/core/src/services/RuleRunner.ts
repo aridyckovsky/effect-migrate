@@ -73,7 +73,7 @@ export const RuleRunnerLive = Layer.effect(
 
     const runRules = (rules: ReadonlyArray<Rule>, config: Config): Effect.Effect<RuleResult[]> =>
       Effect.gen(function*() {
-        yield* Console.log(`Running ${rules.length} rules...`)
+        yield* Effect.logInfo(`Running ${rules.length} rules...`)
 
         const cwd = process.cwd()
         const paths = config.paths ?? new PathsSchema({ exclude: PathsSchema.defaultExclude })
@@ -86,7 +86,7 @@ export const RuleRunnerLive = Layer.effect(
 
         const getImportIndex = (): Effect.Effect<ImportIndexResult, any> =>
           Effect.gen(function*() {
-            yield* Console.log("Building import index...")
+            yield* Effect.logInfo("Building import index...")
             const includePatterns = paths.include ?? ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
             const excludePatterns = [...paths.exclude]
 
@@ -95,7 +95,7 @@ export const RuleRunnerLive = Layer.effect(
               excludePatterns,
               config.concurrency ?? 4
             )
-            yield* Console.log(`✓ Indexed imports`)
+            yield* Effect.logInfo(`✓ Indexed imports`)
 
             return {
               getImports: (file: string) => importIndexService.getImportsOf(file),
@@ -104,8 +104,8 @@ export const RuleRunnerLive = Layer.effect(
           })
 
         const logger = {
-          debug: (msg: string) => Console.log(`[DEBUG] ${msg}`),
-          info: (msg: string) => Console.log(msg)
+          debug: (msg: string) => Effect.logDebug(msg),
+          info: (msg: string) => Effect.logInfo(msg)
         }
 
         const ctx: RuleContext = {
@@ -122,7 +122,7 @@ export const RuleRunnerLive = Layer.effect(
           rules,
           rule =>
             Effect.gen(function*() {
-              yield* Console.log(`  Checking rule: ${rule.id}`)
+              yield* Effect.logInfo(`  Checking rule: ${rule.id}`)
               const ruleResults = yield* rule.run(ctx).pipe(
                 Effect.catchAll(error =>
                   Effect.gen(function*() {
@@ -133,7 +133,7 @@ export const RuleRunnerLive = Layer.effect(
               )
 
               if (ruleResults.length > 0) {
-                yield* Console.log(`  Found ${ruleResults.length} issue(s)`)
+                yield* Effect.logInfo(`  Found ${ruleResults.length} issue(s)`)
               }
 
               return ruleResults
@@ -142,7 +142,7 @@ export const RuleRunnerLive = Layer.effect(
         )
 
         const allResults = results.flat()
-        yield* Console.log(`✓ Complete: ${allResults.length} total findings`)
+        yield* Effect.logInfo(`✓ Complete: ${allResults.length} total findings`)
 
         // Normalize file paths to be relative to cwd (project root)
         const normalizedResults = allResults.map(result => {

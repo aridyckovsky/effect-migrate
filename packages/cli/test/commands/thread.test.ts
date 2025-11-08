@@ -4,6 +4,8 @@ import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
+import * as Clock from "effect/Clock"
+import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -206,7 +208,7 @@ describe("Thread Command Integration Tests", () => {
         // Read from non-existent directory
         const threads = yield* readThreads(outputDir)
 
-        expect(threads.version).toBe(1)
+        expect(threads.schemaVersion).toBe("0.2.0")
         expect(threads.threads).toEqual([])
       }).pipe(Effect.provide(NodeContext.layer)))
 
@@ -234,7 +236,7 @@ describe("Thread Command Integration Tests", () => {
         })
 
         // Small delay to ensure different timestamps
-        yield* Effect.sleep("10 millis")
+        yield* Clock.sleep("10 millis")
 
         yield* addThread(outputDir, {
           url: url2,
@@ -288,7 +290,7 @@ describe("Thread Command Integration Tests", () => {
         const jsonOutput = JSON.stringify(threads, null, 2)
         const parsed: ThreadsFile = JSON.parse(jsonOutput)
 
-        expect(parsed.version).toBe(1)
+        expect(parsed.schemaVersion).toBe("0.2.0")
         expect(Array.isArray(parsed.threads)).toBe(true)
         expect(parsed.threads[0].id).toBe("t-33333333-3333-3333-3333-333333333333")
         expect(parsed.threads[0].url).toBe(url)
@@ -365,7 +367,7 @@ describe("Thread Command Integration Tests", () => {
         // Read from non-existent directory
         const threads = yield* readThreads(outputDir)
 
-        expect(threads.version).toBe(1)
+        expect(threads.schemaVersion).toBe("0.2.0")
         expect(threads.threads).toEqual([])
       }).pipe(Effect.provide(NodeContext.layer)))
 
@@ -388,7 +390,7 @@ describe("Thread Command Integration Tests", () => {
 
         // Should return empty instead of failing
         const threads = yield* readThreads(outputDir)
-        expect(threads.version).toBe(1)
+        expect(threads.schemaVersion).toBe("0.2.0")
         expect(threads.threads).toEqual([])
 
         // Cleanup
@@ -477,7 +479,7 @@ describe("Thread Command Integration Tests", () => {
         // List should complete in less than 2 seconds
         expect(listDuration).toBeLessThan(2000)
 
-        yield* Effect.log(
+        yield* Console.log(
           `Performance: Added 1000 threads in ${addDuration}ms, list in ${listDuration}ms`
         )
 
@@ -670,7 +672,7 @@ describe("Thread Command Integration Tests", () => {
         const originalTimestamp = result1.current.createdAt
 
         // Wait a bit
-        yield* Effect.sleep("50 millis")
+        yield* Clock.sleep("50 millis")
 
         // Add again
         const result2 = yield* addThread(outputDir, {
