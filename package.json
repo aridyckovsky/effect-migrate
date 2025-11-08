@@ -26,7 +26,8 @@
     "changeset": "changeset",
     "version": "changeset version",
     "release": "pnpm build && changeset publish",
-    "docs": "pnpm -r --filter ./packages... exec docgen"
+    "docs": "pnpm -r --filter ./packages... exec docgen",
+    "cli": "tsx packages/cli/src/index.ts"
   },
   "devDependencies": {
     "@babel/cli": "^7.28.3",
