@@ -7,15 +7,15 @@ Command-line interface for the Effect migration toolkit.
 
 ## Status
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `init` | 🧪 Dogfooding | Create configuration file |
-| `audit` | 🧪 Dogfooding | Detect migration issues |
-| `thread add` | 🧪 Dogfooding | Track Amp thread URLs |
-| `thread list` | 🧪 Dogfooding | List tracked threads |
-| `metrics` | 🧪 Dogfooding | Show migration progress |
-| `docs` | 📅 Not Started | Validate documentation |
-| `--help` | ✅ Complete | Show command help |
+| Command       | Status         | Description               |
+| ------------- | -------------- | ------------------------- |
+| `init`        | 🧪 Dogfooding  | Create configuration file |
+| `audit`       | 🧪 Dogfooding  | Detect migration issues   |
+| `thread add`  | 🧪 Dogfooding  | Track Amp thread URLs     |
+| `thread list` | 🧪 Dogfooding  | List tracked threads      |
+| `metrics`     | 🧪 Dogfooding  | Show migration progress   |
+| `docs`        | 📅 Not Started | Validate documentation    |
+| `--help`      | ✅ Complete    | Show command help         |
 
 ## Installation
 
@@ -122,12 +122,12 @@ effect-migrate audit --strict
 
 **Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--config, -c` | `string` | `effect-migrate.config.ts` | Path to configuration file |
-| `--json` | `boolean` | `false` | Output results as JSON |
-| `--amp-out` | `string` | (optional) | Directory to write Amp context files |
-| `--strict` | `boolean` | `false` | Fail on warnings (not just errors) |
+| Option         | Type      | Default                    | Description                          |
+| -------------- | --------- | -------------------------- | ------------------------------------ |
+| `--config, -c` | `string`  | `effect-migrate.config.ts` | Path to configuration file           |
+| `--json`       | `boolean` | `false`                    | Output results as JSON               |
+| `--amp-out`    | `string`  | (optional)                 | Directory to write Amp context files |
+| `--strict`     | `boolean` | `false`                    | Fail on warnings (not just errors)   |
 
 **Console Output:**
 
@@ -218,13 +218,13 @@ effect-migrate thread add \
 
 **Options:**
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `--url` | `string` | ✅ Yes | Amp thread URL (format: `https://ampcode.com/threads/T-{uuid}`) |
-| `--tags` | `string` | No | Comma-separated tags (e.g., `migration,api`) |
-| `--scope` | `string` | No | Comma-separated file globs (e.g., `src/api/**`) |
-| `--description` | `string` | No | Optional description of thread context |
-| `--amp-out` | `string` | No | Directory to write threads.json (default: `.amp/effect-migrate`) |
+| Option          | Type     | Required | Description                                                      |
+| --------------- | -------- | -------- | ---------------------------------------------------------------- |
+| `--url`         | `string` | ✅ Yes   | Amp thread URL (format: `https://ampcode.com/threads/T-{uuid}`)  |
+| `--tags`        | `string` | No       | Comma-separated tags (e.g., `migration,api`)                     |
+| `--scope`       | `string` | No       | Comma-separated file globs (e.g., `src/api/**`)                  |
+| `--description` | `string` | No       | Optional description of thread context                           |
+| `--amp-out`     | `string` | No       | Directory to write threads.json (default: `.amp/effect-migrate`) |
 
 **Thread URL Validation:**
 
@@ -269,10 +269,10 @@ effect-migrate thread list --amp-out .amp/custom
 
 **Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--json` | `boolean` | `false` | Output as JSON |
-| `--amp-out` | `string` | `.amp/effect-migrate` | Directory to read threads.json from |
+| Option      | Type      | Default               | Description                         |
+| ----------- | --------- | --------------------- | ----------------------------------- |
+| `--json`    | `boolean` | `false`               | Output as JSON                      |
+| `--amp-out` | `string`  | `.amp/effect-migrate` | Directory to read threads.json from |
 
 **Console Output:**
 
