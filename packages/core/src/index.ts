@@ -290,6 +290,29 @@ export { SCHEMA_VERSION } from "./schema/index.js"
 export type { SchemaVersion } from "./schema/index.js"
 
 // ============================================================================
+// Package Metadata
+// ============================================================================
+
+/**
+ * Get package metadata (version and schema version) from package.json.
+ *
+ * Works in both development (tsx) and production (built) environments.
+ *
+ * @example
+ * ```ts
+ * const { toolVersion, schemaVersion } = yield* getPackageMeta
+ * // toolVersion: "0.4.0"
+ * // schemaVersion: "0.2.0"
+ * ```
+ */
+export { getPackageMeta } from "./amp/package-meta.js"
+
+/**
+ * Package metadata interface.
+ */
+export type { PackageMeta } from "./amp/package-meta.js"
+
+// ============================================================================
 // Services
 // ============================================================================
 
