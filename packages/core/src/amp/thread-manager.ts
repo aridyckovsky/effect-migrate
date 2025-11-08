@@ -12,10 +12,13 @@
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
+import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as AmpSchema from "../schema/amp.js"
+import { SCHEMA_VERSION } from "../schema/versions.js"
+import { getPackageMeta } from "./package-meta.js"
 
 // Strict thread URL pattern: http(s)://ampcode.com/threads/T-{uuid-v4}
 // UUID must match RFC 4122 format: 8-4-4-4-12 hex digits (lowercase)
@@ -209,10 +212,13 @@ export const readThreads = (
     const path = yield* Path.Path
     const threadsPath = path.join(outputDir, "threads.json")
 
+    // Get toolVersion for fallback
+    const { toolVersion } = yield* getPackageMeta
+
     // If file doesn't exist, return empty
     const exists = yield* fs.exists(threadsPath)
     if (!exists) {
-      return { version: 1, threads: [] }
+      return { schemaVersion: SCHEMA_VERSION, toolVersion, threads: [] }
     }
 
     // Try to read
@@ -221,7 +227,7 @@ export const readThreads = (
       .pipe(Effect.catchAll(() => Effect.succeed("")))
 
     if (!content) {
-      return { version: 1, threads: [] }
+      return { schemaVersion: SCHEMA_VERSION, toolVersion, threads: [] }
     }
 
     // Parse JSON - log warning and return empty on failure
@@ -229,26 +235,32 @@ export const readThreads = (
       try: () => JSON.parse(content),
       catch: error => error
     }).pipe(
-      Effect.tapError(error => Effect.logWarning(`Malformed threads.json: ${error}`)),
-      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+      Effect.tapError(error => Console.warn(`Malformed threads.json: ${error}`)),
+      Effect.catchAll(() =>
+        Effect.succeed({ schemaVersion: SCHEMA_VERSION, toolVersion, threads: [] } as const)
+      )
     )
 
-    // Early return if parsing failed
-    if (data.version === 1 && data.threads.length === 0 && !content.includes("\"version\"")) {
-      return data
+    // Early return if parsing failed (check for schemaVersion field)
+    if (!data.schemaVersion && data.threads?.length === 0) {
+      return { schemaVersion: SCHEMA_VERSION, toolVersion, threads: [] }
     }
 
     // Decode with schema - log warning and return empty on failure
-    const decode = Schema.decodeUnknownSync(AmpSchema.ThreadsFile)
-
-    return yield* Effect.try({
-      try: () => decode(data),
-      catch: error => error
-    }).pipe(
-      Effect.tapError(error => Effect.logWarning(`Invalid threads.json schema: ${error}`)),
-      Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] }))
+    const result = yield* Schema.decodeUnknown(AmpSchema.ThreadsFile)(data).pipe(
+      Effect.tapError(error => Console.warn(`Invalid threads.json schema: ${error}`)),
+      Effect.catchAll(() =>
+        Effect.succeed({ schemaVersion: SCHEMA_VERSION, toolVersion, threads: [] } as const)
+      )
     )
-  }).pipe(Effect.catchAll(() => Effect.succeed({ version: 1, threads: [] })))
+
+    return result
+  }).pipe(Effect.catchAll(() =>
+    Effect.gen(function*() {
+      const { toolVersion } = yield* getPackageMeta
+      return { schemaVersion: SCHEMA_VERSION, toolVersion, threads: [] }
+    })
+  ))
 
 /**
  * Write threads.json to the output directory.
@@ -330,7 +342,7 @@ export const addThread = (
     scope?: string[]
     description?: string
   },
-  auditVersion: number = 1
+  auditRevision: number = 1
 ): Effect.Effect<
   { added: boolean; merged: boolean; current: ThreadEntry },
   Error,
@@ -343,6 +355,9 @@ export const addThread = (
     // Get current timestamp from Clock service
     const now = yield* Clock.currentTimeMillis
     const createdAt = DateTime.unsafeMake(now)
+
+    // Get toolVersion for threads.json
+    const { toolVersion } = yield* getPackageMeta
 
     // Read existing threads
     const threadsFile = yield* readThreads(outputDir)
@@ -363,6 +378,7 @@ export const addThread = (
         id: existing.id,
         url: existing.url,
         createdAt: existing.createdAt,
+        auditRevision: existing.auditRevision, // Preserve original revision
         ...(mergedTags.length > 0 && { tags: mergedTags }),
         ...(mergedScope.length > 0 && { scope: mergedScope }),
         ...(input.description && !existing.description && { description: input.description })
@@ -375,7 +391,11 @@ export const addThread = (
         (a: ThreadEntry, b: ThreadEntry) => b.createdAt.epochMillis - a.createdAt.epochMillis
       )
 
-      yield* writeThreads(outputDir, { version: auditVersion, threads: sorted })
+      yield* writeThreads(outputDir, {
+        schemaVersion: SCHEMA_VERSION,
+        toolVersion,
+        threads: sorted
+      })
 
       return { added: false, merged: true, current: updated }
     } else {
@@ -391,6 +411,7 @@ export const addThread = (
         id,
         url,
         createdAt,
+        auditRevision,
         ...(dedupedTags && dedupedTags.length > 0 && { tags: dedupedTags }),
         ...(dedupedScope && dedupedScope.length > 0 && { scope: dedupedScope }),
         ...(input.description && { description: input.description })
@@ -403,7 +424,11 @@ export const addThread = (
         (a: ThreadEntry, b: ThreadEntry) => b.createdAt.epochMillis - a.createdAt.epochMillis
       )
 
-      yield* writeThreads(outputDir, { version: auditVersion, threads: sorted })
+      yield* writeThreads(outputDir, {
+        schemaVersion: SCHEMA_VERSION,
+        toolVersion,
+        threads: sorted
+      })
 
       return { added: true, merged: false, current: newEntry }
     }
