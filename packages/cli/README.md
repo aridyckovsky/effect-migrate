@@ -523,7 +523,19 @@ pnpm install
 pnpm build
 ```
 
-Run commands with node:
+### Running CLI Locally
+
+**During development** (recommended, no build needed):
+
+```bash
+# Run from source using tsx
+pnpm cli --help
+pnpm cli audit
+pnpm cli thread list --json
+pnpm cli --version
+```
+
+**Using built version**:
 
 ```bash
 node packages/cli/build/esm/index.js --help

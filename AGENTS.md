@@ -417,14 +417,26 @@ pnpm check
 
 ### CLI Development
 
+**Recommended: Run from source (no build needed)**
+
 ```bash
-# Build CLI
+# Run CLI directly from TypeScript source using tsx
+pnpm cli --version
+pnpm cli audit
+pnpm cli thread list
+pnpm cli init
+```
+
+**Alternative: Using built version**
+
+```bash
+# Build CLI first
 pnpm --filter @effect-migrate/cli build
 
-# Run CLI locally (after build)
-node packages/cli/dist/index.js audit
+# Run from built output
+node packages/cli/build/esm/index.js audit
 
-# Or link globally
+# Or link globally for development
 cd packages/cli
 pnpm link --global
 effect-migrate audit
@@ -657,6 +669,7 @@ docs/agents/prs/drafts/feat-core-file-caching.md
 ```
 
 **Draft must include:**
+
 - Full YAML frontmatter (created, lastUpdated, author, status, thread, audience, tags)
 - Complete PR description following the template below
 - Agent context section with implementation approach and thread URL
@@ -673,7 +686,7 @@ feat(core): add lazy file loading for large repositories
 
 **PR Description Template:**
 
-```markdown
+````markdown
 ## What
 
 Brief summary of what changed.
@@ -707,6 +720,7 @@ pnpm lint
 pnpm build
 pnpm test
 ```
+````
 
 **New tests:**
 
@@ -741,7 +755,8 @@ pnpm test
 **Related docs:**
 
 - @docs/agents/plans/lazy-file-loading.md
-```
+
+````
 
 #### 6. Address CI Feedback
 
@@ -761,7 +776,7 @@ pnpm build:types && pnpm typecheck && pnpm lint && pnpm build && pnpm test
 git add .
 git commit -m "fix: address CI feedback"
 git push origin feat/core-file-caching
-```
+````
 
 #### 7. Respond to Review Comments
 
@@ -1542,6 +1557,7 @@ const result = yield * decode(data)
 
 ---
 
-**Last Updated:** 2025-11-05\
+**Last Updated:** 2025-11-08\
 **Maintainer:** Ari Dyckovsky\
+**See also:** [README](README.md)
 **License:** MIT

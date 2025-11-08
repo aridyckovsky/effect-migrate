@@ -960,12 +960,23 @@ const results =
 
 **Solutions:**
 
+**For local development (recommended):**
+
+Use the workspace script that runs from source:
+
+```bash
+pnpm cli --help
+pnpm cli audit
+```
+
+**For global installation (after publishing):**
+
 1. Check package.json bin field:
 
    ```json
    {
      "bin": {
-       "effect-migrate": "./dist/index.js"
+       "effect-migrate": "./build/esm/index.js"
      }
    }
    ```
@@ -978,9 +989,12 @@ const results =
    // ...
    ```
 
-3. Link locally for testing:
+3. Link locally for testing built version:
    ```bash
+   cd packages/cli
+   pnpm build
    pnpm link --global
+   effect-migrate --help
    ```
 
 ### Exit Code Always 0
@@ -1054,5 +1068,5 @@ When adding new CLI commands:
 
 ---
 
-**Last Updated:** 2025-11-03\
+**Last Updated:** 2025-11-08\
 **See Also:** [Root AGENTS.md](../../AGENTS.md) for general Effect patterns
