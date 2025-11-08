@@ -45,6 +45,16 @@ export type { Metric } from "./types.js"
 // ============================================================================
 
 /**
+ * Rule kind schema for validation.
+ */
+export { RuleKindSchema } from "./rules/types.js"
+
+/**
+ * Rule kind type (pattern, boundary, docs, metrics).
+ */
+export type { RuleKind } from "./rules/types.js"
+
+/**
  * Context provided to rules during execution.
  * Includes file access, import index, and config.
  */
@@ -279,7 +289,7 @@ export { ConfigLoadError } from "./schema/loader.js"
  * ```ts
  * import { SCHEMA_VERSION } from "@effect-migrate/core"
  *
- * console.log(SCHEMA_VERSION) // "0.2.0"
+ * yield* Console.log(SCHEMA_VERSION) // "0.2.0"
  * ```
  */
 export { SCHEMA_VERSION } from "./schema/index.js"
@@ -389,6 +399,52 @@ export { RuleRunner, type RuleRunnerService } from "./services/RuleRunner.js"
  */
 export { RuleRunnerLayer, RuleRunnerLive } from "./services/RuleRunner.js"
 
+/**
+ * Time service for centralized time operations.
+ *
+ * Wraps Clock.Clock to provide consistent timestamps and TestClock compatibility.
+ *
+ * @example
+ * ```ts
+ * import { Time, TimeLive } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const timestamp = yield* Time.now
+ *   const checkpointId = yield* Time.checkpointId
+ *   return { timestamp, checkpointId }
+ * }).pipe(Effect.provide(TimeLive))
+ * ```
+ */
+export {
+  checkpointId,
+  formatCheckpointId,
+  layerLive as TimeLive,
+  now,
+  nowMillis,
+  nowUtc,
+  Time
+} from "./services/Time.js"
+
+/**
+ * ProcessInfo service for Effect-first access to process information.
+ *
+ * Provides safe, testable access to Node.js process globals (cwd, env, etc.)
+ * following Effect-first patterns.
+ *
+ * @example
+ * ```ts
+ * import { ProcessInfo, ProcessInfoLive } from "@effect-migrate/core"
+ *
+ * const program = Effect.gen(function*() {
+ *   const processInfo = yield* ProcessInfo
+ *   const cwd = yield* processInfo.cwd
+ *   const ampThreadId = yield* processInfo.getEnv("AMP_CURRENT_THREAD_ID")
+ *   return { cwd, ampThreadId }
+ * }).pipe(Effect.provide(ProcessInfoLive))
+ * ```
+ */
+export { ProcessInfo, ProcessInfoLive, type ProcessInfoService } from "./services/ProcessInfo.js"
+
 // ============================================================================
 // Amp Context Generation
 // ============================================================================
@@ -447,6 +503,41 @@ export { addThread } from "./amp/thread-manager.js"
  * Read all tracked thread references.
  */
 export { readThreads } from "./amp/thread-manager.js"
+
+/**
+ * Generate filesystem-safe checkpoint ID from DateTime.
+ */
+export { generateCheckpointId } from "./amp/checkpoint-manager.js"
+
+/**
+ * Compute delta statistics between two FindingsSummary objects.
+ */
+export { computeDelta } from "./amp/checkpoint-manager.js"
+
+/**
+ * List recent checkpoints (newest first, sliced to limit).
+ */
+export { listCheckpoints } from "./amp/checkpoint-manager.js"
+
+/**
+ * Read checkpoint manifest from directory.
+ */
+export { readManifest } from "./amp/checkpoint-manager.js"
+
+/**
+ * Write checkpoint manifest to directory.
+ */
+export { writeManifest } from "./amp/checkpoint-manager.js"
+
+/**
+ * Read and decode a checkpoint file.
+ */
+export { readCheckpoint } from "./amp/checkpoint-manager.js"
+
+/**
+ * Create a new checkpoint with findings and config snapshot.
+ */
+export { createCheckpoint } from "./amp/checkpoint-manager.js"
 
 // ============================================================================
 // Preset Loading

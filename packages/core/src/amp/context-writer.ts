@@ -39,11 +39,10 @@
  * @module @effect-migrate/core/amp
  */
 
+import type { PlatformError } from "@effect/platform/Error"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
-import * as Clock from "effect/Clock"
 import * as Console from "effect/Console"
-import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import type { RuleResult } from "../rules/types.js"
@@ -52,12 +51,18 @@ import {
   type AmpAuditContext as AmpAuditContextType,
   AmpContextIndex,
   type AmpContextIndex as AmpContextIndexType,
+  CheckpointMetadata,
+  CheckpointSummary,
+  FindingsGroup,
   ThreadEntry,
   type ThreadReference as ThreadReferenceType,
   ThreadsFile
 } from "../schema/amp.js"
 import type { Config } from "../schema/Config.js"
 import { SCHEMA_VERSION } from "../schema/versions.js"
+import { ProcessInfo } from "../services/ProcessInfo.js"
+import * as Time from "../services/Time.js"
+import { createCheckpoint, listCheckpoints } from "./checkpoint-manager.js"
 import { writeMetricsContext } from "./metrics-writer.js"
 import { normalizeResults } from "./normalizer.js"
 import { getPackageMeta } from "./package-meta.js"
@@ -136,7 +141,9 @@ export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadRe
  * @category Effect
  * @since 0.2.0
  */
-const getNextAuditRevision = (outputDir: string) =>
+const getNextAuditRevision = (
+  outputDir: string
+): Effect.Effect<number, never, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
@@ -157,6 +164,362 @@ const getNextAuditRevision = (outputDir: string) =>
     )
 
     return currentRevision + 1
+  })
+
+/**
+ * Normalize file paths to workspace-relative POSIX format.
+ *
+ * Transforms absolute file paths in RuleResults to workspace-relative paths
+ * with forward slashes, suitable for cross-platform context files.
+ *
+ * @param results - Rule results with potentially absolute file paths
+ * @param cwd - Current working directory (workspace root)
+ * @param path - Path service for normalization
+ * @returns Results with normalized file paths
+ *
+ * @category Pure Function
+ * @since 0.5.0
+ */
+const normalizeFilePaths = (
+  results: RuleResult[],
+  cwd: string,
+  path: Path.Path
+): RuleResult[] =>
+  results.map(r =>
+    r.file
+      ? {
+        ...r,
+        file: path.relative(cwd, r.file).split(path.sep).join("/")
+      }
+      : r
+  )
+
+/**
+ * Auto-add current Amp thread to threads.json with smart tags and description.
+ *
+ * Detects the current Amp thread ID from environment, generates tags from
+ * findings summary, and adds the thread entry with auto-generated metadata.
+ *
+ * @param outputDir - Directory containing threads.json
+ * @param findings - Normalized findings for tag generation
+ * @param revision - Audit revision number
+ * @param ampThreadId - Optional Amp thread ID (from AMP_CURRENT_THREAD_ID env)
+ * @returns Effect that adds thread or succeeds silently on error
+ *
+ * @category Effect
+ * @since 0.5.0
+ */
+const handleThreadAutoAdd = (
+  outputDir: string,
+  findings: Schema.Schema.Type<typeof FindingsGroup>,
+  revision: number,
+  ampThreadId: string | undefined
+): Effect.Effect<void, never, FileSystem.FileSystem | Path.Path | Time.Time> =>
+  Effect.gen(function*() {
+    if (!ampThreadId) return
+
+    const threadUrl = `https://ampcode.com/threads/${ampThreadId}`
+
+    // Generate smart tags and description from findings
+    const { errors, warnings, info } = findings.summary
+    const filesCount = findings.files.length
+
+    // Count rule occurrences to find top 3 most frequent
+    const ruleCounts = new Map<number, number>()
+    for (const result of findings.results) {
+      ruleCounts.set(result.rule, (ruleCounts.get(result.rule) || 0) + 1)
+    }
+    const topRules = Array.from(ruleCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([ruleIndex]) => `rule:${findings.rules[ruleIndex].id}`)
+
+    // Build tags: base + severity counts + top rules
+    const tags = [
+      "amp-auto-detected",
+      "audit",
+      `errors:${errors}`,
+      `warnings:${warnings}`,
+      ...(info > 0 ? [`info:${info}`] : []),
+      ...topRules
+    ]
+
+    // Build description
+    const severityParts = [
+      `${errors} error${errors !== 1 ? "s" : ""}`,
+      `${warnings} warning${warnings !== 1 ? "s" : ""}`,
+      ...(info > 0 ? [`${info} info`] : [])
+    ]
+    const description = `Audit revision ${revision} — ${
+      severityParts.join(", ")
+    } across ${filesCount} file${filesCount !== 1 ? "s" : ""}`
+
+    yield* addThread(
+      outputDir,
+      {
+        url: threadUrl,
+        tags,
+        description
+      },
+      revision
+    ).pipe(
+      Effect.catchAll(e =>
+        Console.warn(`Failed to auto-add Amp thread: ${String(e)}`).pipe(
+          Effect.map(() => undefined)
+        )
+      )
+    )
+  })
+
+/**
+ * Build audit context structure for audit.json.
+ *
+ * Assembles the complete AmpAuditContext object with normalized findings,
+ * config snapshot, and optional thread references.
+ *
+ * @param findings - Normalized findings group
+ * @param results - Original rule results (for rulesEnabled extraction)
+ * @param config - Migration configuration
+ * @param revision - Audit revision number
+ * @param toolVersion - effect-migrate version
+ * @param timestamp - ISO timestamp
+ * @param currentThread - Optional current thread entry
+ * @returns AmpAuditContext ready for encoding
+ *
+ * @category Pure Function
+ * @since 0.5.0
+ */
+const buildAuditContext = (
+  findings: Schema.Schema.Type<typeof FindingsGroup>,
+  results: RuleResult[],
+  config: Config,
+  revision: number,
+  toolVersion: string,
+  timestamp: Schema.Schema.Type<typeof Schema.DateTimeUtc>,
+  currentThread: ThreadEntry | undefined
+): AmpAuditContextType => {
+  // Transform current thread only (not all threads)
+  const auditThreads = currentThread
+    ? toAuditThreads({
+      schemaVersion: SCHEMA_VERSION,
+      toolVersion,
+      threads: [currentThread]
+    })
+    : []
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    revision,
+    toolVersion,
+    projectRoot: ".",
+    timestamp,
+    findings,
+    config: {
+      rulesEnabled: Array.from(new Set(results.map(r => r.id))).sort(),
+      failOn: [...(config.report?.failOn ?? ["error"])].sort()
+    },
+    ...(auditThreads.length > 0 && { threads: auditThreads })
+  }
+}
+
+/**
+ * Write audit.json file to output directory.
+ *
+ * Encodes and writes the audit context to JSON format with proper formatting.
+ *
+ * @param outputDir - Directory to write audit.json
+ * @param auditContext - Audit context to write
+ * @returns Effect that writes the file
+ *
+ * @category Effect
+ * @since 0.5.0
+ */
+const writeAuditFile = (
+  outputDir: string,
+  auditContext: AmpAuditContextType
+): Effect.Effect<void, PlatformError, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+
+    const encodeAudit = Schema.encodeSync(AmpAuditContext)
+    const auditJson = encodeAudit(auditContext)
+
+    const auditPath = path.join(outputDir, "audit.json")
+    yield* fs.writeFileString(auditPath, JSON.stringify(auditJson, null, 2))
+  })
+
+/**
+ * Generate badges markdown content with severity metrics and migration status.
+ *
+ * Generates shields.io badges and summary tables for README integration.
+ *
+ * @param findings - Normalized findings for badge generation
+ * @param revision - Audit revision number
+ * @param outputDir - Output directory path (for MCP reference example)
+ * @returns Markdown content for badges.md
+ *
+ * @category Pure Function
+ * @since 0.5.0
+ */
+const generateBadgesContent = (
+  findings: Schema.Schema.Type<typeof FindingsGroup>,
+  revision: number,
+  outputDir: string
+): string => {
+  const makeBadge = (label: string, count: number, color: string) =>
+    `![${label}](https://img.shields.io/badge/${label}-${count}-${color})`
+
+  const errorBadge = makeBadge("errors", findings.summary.errors, "red")
+  const warningBadge = makeBadge("warnings", findings.summary.warnings, "orange")
+  const infoBadge = makeBadge("info", findings.summary.info, "blue")
+  const totalBadge = makeBadge(
+    "total_findings",
+    findings.summary.errors + findings.summary.warnings + findings.summary.info,
+    "blue"
+  )
+  const rulesBadge = makeBadge("rules", findings.rules.length, "blue")
+
+  return `# Effect Migration Status
+
+${errorBadge} ${warningBadge} ${infoBadge} ${totalBadge} ${rulesBadge}
+
+**Last updated:** ${new Date().toLocaleString()}  
+**Audit revision:** ${revision}
+
+---
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| Errors | ${findings.summary.errors} |
+| Warnings | ${findings.summary.warnings} |
+| Info | ${findings.summary.info} |
+| Total findings | ${findings.summary.errors + findings.summary.warnings + findings.summary.info} |
+| Files affected | ${findings.files.length} |
+| Active rules | ${findings.rules.length} |
+
+## Top Issues
+
+${
+    findings.rules
+      .slice(0, 5)
+      .map(rule => `- **[${rule.id}]** (${rule.severity}): ${rule.message}`)
+      .join("\n")
+  }
+
+---
+
+## Using with Amp
+
+Reference this migration context in your Amp threads:
+
+\`\`\`
+I'm working on migrating this project to Effect.
+Read @${outputDir}/index.json for the complete migration context.
+\`\`\`
+
+**Amp will automatically understand:**
+- Current audit findings and violations ([audit.json](./audit.json))
+- Migration metrics and progress ([metrics.json](./metrics.json))
+- Historical threads where work occurred ([threads.json](./threads.json))
+- What patterns to avoid (based on active rules)
+
+This context persists across threads, eliminating the need to re-explain migration status.
+`
+}
+
+/**
+ * Write badges.md file to output directory.
+ *
+ * Writes the generated badges content to badges.md.
+ *
+ * @param outputDir - Directory to write badges.md
+ * @param content - Markdown content to write
+ * @returns Effect that writes the file
+ *
+ * @category Effect
+ * @since 0.5.0
+ */
+const writeBadgesFile = (
+  outputDir: string,
+  content: string
+): Effect.Effect<void, PlatformError, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+
+    const badgesPath = path.join(outputDir, "badges.md")
+    yield* fs.writeFileString(badgesPath, content)
+  })
+
+/**
+ * Build index context structure for index.json.
+ *
+ * Assembles the complete AmpContextIndex object with file references and
+ * optional checkpoint metadata.
+ *
+ * @param toolVersion - effect-migrate version
+ * @param timestamp - ISO timestamp
+ * @param checkpointMeta - Optional checkpoint metadata
+ * @param recentCheckpoints - Recent checkpoint summaries
+ * @param hasThreads - Whether threads.json exists
+ * @returns AmpContextIndex ready for encoding
+ *
+ * @category Pure Function
+ * @since 0.5.0
+ */
+const buildIndexContext = (
+  toolVersion: string,
+  timestamp: Schema.Schema.Type<typeof Schema.DateTimeUtc>,
+  checkpointMeta: Schema.Schema.Type<typeof CheckpointMetadata> | undefined,
+  recentCheckpoints: ReadonlyArray<Schema.Schema.Type<typeof CheckpointSummary>>,
+  hasThreads: boolean
+): AmpContextIndexType => ({
+  schemaVersion: SCHEMA_VERSION,
+  toolVersion,
+  projectRoot: ".",
+  timestamp,
+  ...(checkpointMeta && { latestCheckpoint: checkpointMeta.id }),
+  ...(recentCheckpoints.length > 0 && { checkpoints: recentCheckpoints }),
+  files: {
+    audit: "audit.json",
+    ...(checkpointMeta && {
+      checkpoints: "./checkpoints",
+      manifest: "./checkpoints/manifest.json"
+    }),
+    metrics: "metrics.json",
+    badges: "badges.md",
+    ...(hasThreads && { threads: "threads.json" })
+  }
+})
+
+/**
+ * Write index.json file to output directory.
+ *
+ * Encodes and writes the index context to JSON format with proper formatting.
+ *
+ * @param outputDir - Directory to write index.json
+ * @param indexContext - Index context to write
+ * @returns Effect that writes the file
+ *
+ * @category Effect
+ * @since 0.5.0
+ */
+const writeIndexFile = (
+  outputDir: string,
+  indexContext: AmpContextIndexType
+): Effect.Effect<void, PlatformError, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+
+    const encodeIndex = Schema.encodeSync(AmpContextIndex)
+    const indexJson = encodeIndex(indexContext)
+
+    const indexPath = path.join(outputDir, "index.json")
+    yield* fs.writeFileString(indexPath, JSON.stringify(indexJson, null, 2))
   })
 
 /**
@@ -187,17 +550,25 @@ const getNextAuditRevision = (outputDir: string) =>
  * })
  * ```
  */
-export const writeAmpContext = (outputDir: string, results: RuleResult[], config: Config) =>
+export const writeAmpContext = (
+  outputDir: string,
+  results: RuleResult[],
+  config: Config
+): Effect.Effect<
+  void,
+  Error | PlatformError,
+  FileSystem.FileSystem | Path.Path | ProcessInfo | Time.Time
+> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
+    const processInfo = yield* ProcessInfo
 
     // Ensure output directory exists
     yield* fs.makeDirectory(outputDir, { recursive: true }).pipe(Effect.catchAll(() => Effect.void))
 
-    const now = yield* Clock.currentTimeMillis
-    const timestamp = DateTime.unsafeMake(now)
-    const cwd = process.cwd()
+    const timestamp = yield* Time.nowUtc
+    const cwd = yield* processInfo.cwd
 
     // Get dynamic metadata from package.json
     const { toolVersion } = yield* getPackageMeta
@@ -205,208 +576,66 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     // Get next audit revision (increments on each run)
     const revision = yield* getNextAuditRevision(outputDir)
 
-    // Pre-normalize file paths before calling normalizer
-    const normalizedInput: RuleResult[] = results.map(r =>
-      r.file
-        ? {
-          ...r,
-          file: path.relative(cwd, r.file).split(path.sep).join("/")
-        }
-        : r
-    )
+    // Normalize file paths and generate findings
+    const normalizedInput = normalizeFilePaths(results, cwd, path)
     const findings = normalizeResults(normalizedInput)
 
-    // Auto-detect current Amp thread and add it to threads.json
-    const ampThreadId = process.env.AMP_CURRENT_THREAD_ID
-    if (ampThreadId) {
-      const threadUrl = `https://ampcode.com/threads/${ampThreadId}`
+    // Auto-detect current Amp thread ID
+    const ampThreadId = yield* processInfo.getEnv("AMP_CURRENT_THREAD_ID")
 
-      // Generate smart tags and description from findings
-      const { errors, warnings, info } = findings.summary
-      const filesCount = findings.files.length
-
-      // Count rule occurrences to find top 3 most frequent
-      const ruleCounts = new Map<number, number>()
-      for (const result of findings.results) {
-        ruleCounts.set(result.rule, (ruleCounts.get(result.rule) || 0) + 1)
-      }
-      const topRules = Array.from(ruleCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([ruleIndex]) => `rule:${findings.rules[ruleIndex].id}`)
-
-      // Build tags: base + severity counts + top rules
-      const tags = [
-        "amp-auto-detected",
-        "audit",
-        `errors:${errors}`,
-        `warnings:${warnings}`,
-        ...(info > 0 ? [`info:${info}`] : []),
-        ...topRules
-      ]
-
-      // Build description
-      const severityParts = [
-        `${errors} error${errors !== 1 ? "s" : ""}`,
-        `${warnings} warning${warnings !== 1 ? "s" : ""}`,
-        ...(info > 0 ? [`${info} info`] : [])
-      ]
-      const description = `Audit revision ${revision} — ${
-        severityParts.join(", ")
-      } across ${filesCount} file${filesCount !== 1 ? "s" : ""}`
-
-      yield* addThread(
-        outputDir,
-        {
-          url: threadUrl,
-          tags,
-          description
-        },
-        revision
-      ).pipe(
-        Effect.catchAll(e =>
-          Console.warn(`Failed to auto-add Amp thread: ${String(e)}`).pipe(
-            Effect.map(() => undefined)
-          )
+    // Create checkpoint (silently catch errors)
+    const checkpointMeta = yield* createCheckpoint(
+      outputDir,
+      findings,
+      config,
+      revision,
+      ampThreadId
+    ).pipe(
+      Effect.catchAll(error =>
+        Console.warn(`Failed to create checkpoint: ${String(error)}`).pipe(
+          Effect.map(() => undefined)
         )
       )
-    }
+    )
 
-    // Read threads file to get current thread entry (if any)
+    // Auto-add current Amp thread (silently catch errors)
+    yield* handleThreadAutoAdd(outputDir, findings, revision, ampThreadId)
+
+    // Read threads file to get current thread entry
     const threadsFile = yield* readThreads(outputDir)
-
-    // Find the thread entry for current revision (if it exists)
     const currentThread = threadsFile.threads.find(t => t.auditRevision === revision)
 
-    // Transform current thread only (not all threads)
-    const auditThreads = currentThread
-      ? toAuditThreads({
-        schemaVersion: threadsFile.schemaVersion,
-        toolVersion: threadsFile.toolVersion,
-        threads: [currentThread]
-      })
-      : []
-
-    // Create audit context (validated by schema) with conditional threads
-    const auditContext: AmpAuditContextType = {
-      schemaVersion: SCHEMA_VERSION,
+    // Build and write audit.json
+    const auditContext = buildAuditContext(
+      findings,
+      results,
+      config,
       revision,
       toolVersion,
-      projectRoot: ".",
       timestamp,
-      findings,
-      config: {
-        rulesEnabled: Array.from(new Set(results.map(r => r.id))).sort(),
-        failOn: [...(config.report?.failOn ?? ["error"])].sort()
-      },
-      ...(auditThreads.length > 0 && { threads: auditThreads })
-    }
-
-    // Encode audit context to JSON
-    const encodeAudit = Schema.encodeSync(AmpAuditContext)
-    const auditJson = encodeAudit(auditContext)
-
-    // Write audit.json
-    const auditPath = path.join(outputDir, "audit.json")
-    yield* fs.writeFileString(auditPath, JSON.stringify(auditJson, null, 2))
-
-    // Create index (validated by schema)
-    const index: AmpContextIndexType = {
-      schemaVersion: SCHEMA_VERSION,
-      toolVersion,
-      projectRoot: ".",
-      timestamp,
-      files: {
-        audit: "audit.json",
-        metrics: "metrics.json",
-        badges: "badges.md",
-        ...(auditThreads.length > 0 && { threads: "threads.json" })
-      }
-    }
-
-    // Encode index to JSON
-    const encodeIndex = Schema.encodeSync(AmpContextIndex)
-    const indexJson = encodeIndex(index)
-
-    // Write index.json
-    const indexPath = path.join(outputDir, "index.json")
-    yield* fs.writeFileString(indexPath, JSON.stringify(indexJson, null, 2))
-
-    /**
-     * Generate badge with severity-consistent coloring.
-     *
-     * Color scheme:
-     * - error: always red (matches severity)
-     * - warning: always orange (matches severity)
-     * - info: always blue (matches severity)
-     * - total/rules: blue (informational)
-     *
-     * DRY helper to avoid badge generation duplication.
-     */
-    const makeBadge = (label: string, count: number, color: string) =>
-      `![${label}](https://img.shields.io/badge/${label}-${count}-${color})`
-
-    const errorBadge = makeBadge("errors", findings.summary.errors, "red")
-    const warningBadge = makeBadge("warnings", findings.summary.warnings, "orange")
-    const infoBadge = makeBadge("info", findings.summary.info, "blue")
-    const totalBadge = makeBadge(
-      "total_findings",
-      findings.summary.errors + findings.summary.warnings + findings.summary.info,
-      "blue"
+      currentThread
     )
-    const rulesBadge = makeBadge("rules", findings.rules.length, "blue")
+    yield* writeAuditFile(outputDir, auditContext)
 
-    const badgesContent = `# Effect Migration Status
+    // Read recent checkpoints for index
+    const recentCheckpoints = yield* listCheckpoints(outputDir, 10).pipe(
+      Effect.catchAll(() => Effect.succeed([]))
+    )
 
-${errorBadge} ${warningBadge} ${infoBadge} ${totalBadge} ${rulesBadge}
+    // Build and write index.json
+    const hasThreads = auditContext.threads !== undefined && auditContext.threads.length > 0
+    const indexContext = buildIndexContext(
+      toolVersion,
+      timestamp,
+      checkpointMeta,
+      recentCheckpoints,
+      hasThreads
+    )
+    yield* writeIndexFile(outputDir, indexContext)
 
-**Last updated:** ${new Date().toLocaleString()}  
-**Audit revision:** ${revision}
-
----
-
-## Summary
-
-| Metric | Count |
-|--------|-------|
-| Errors | ${findings.summary.errors} |
-| Warnings | ${findings.summary.warnings} |
-| Info | ${findings.summary.info} |
-| Total findings | ${findings.summary.errors + findings.summary.warnings + findings.summary.info} |
-| Files affected | ${findings.files.length} |
-| Active rules | ${findings.rules.length} |
-
-## Top Issues
-
-${
-      findings.rules
-        .slice(0, 5)
-        .map(rule => `- **[${rule.id}]** (${rule.severity}): ${rule.message}`)
-        .join("\n")
-    }
-
----
-
-## Using with Amp
-
-Reference this migration context in your Amp threads:
-
-\`\`\`
-I'm working on migrating this project to Effect.
-Read @${outputDir}/index.json for the complete migration context.
-\`\`\`
-
-**Amp will automatically understand:**
-- Current audit findings and violations ([audit.json](./audit.json))
-- Migration metrics and progress ([metrics.json](./metrics.json))
-- Historical threads where work occurred ([threads.json](./threads.json))
-- What patterns to avoid (based on active rules)
-
-This context persists across threads, eliminating the need to re-explain migration status.
-`
-
-    const badgesPath = path.join(outputDir, "badges.md")
-    yield* fs.writeFileString(badgesPath, badgesContent)
+    // Generate and write badges.md
+    const badgesContent = generateBadgesContent(findings, revision, outputDir)
+    yield* writeBadgesFile(outputDir, badgesContent)
 
     // Write metrics.json
     yield* writeMetricsContext(outputDir, results, config, revision)

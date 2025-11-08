@@ -117,7 +117,7 @@ export const calculateMetrics = (results: RuleResult[]): MetricsData => {
  * ```typescript
  * const metrics = calculateMetrics(results)
  * const dashboard = formatMetricsOutput(metrics)
- * console.log(dashboard)
+ * yield* Console.log(dashboard)
  * // Displays:
  * // ╔═══════════════════════════════════════════════════════════╗
  * // ║          📊 MIGRATION METRICS DASHBOARD                   ║

@@ -31,15 +31,37 @@
  * @since 0.2.0
  */
 
+import { ProcessInfoLive, Time } from "@effect-migrate/core"
 import { addThread, readThreads, updateIndexWithThreads } from "@effect-migrate/core/amp"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
+import * as NodeContext from "@effect/platform-node/NodeContext"
 import chalk from "chalk"
+import * as Clock from "effect/Clock"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { ampOutOption, getAmpOutPathWithDefault } from "../amp/options.js"
+
+/**
+ * Layer providing all services required by thread management functions.
+ *
+ * Combines platform services (FileSystem, Path) with custom services (Time, ProcessInfo).
+ * Thread operations require:
+ * - FileSystem/Path: For reading/writing threads.json
+ * - Time: For generating timestamps (createdAt field)
+ * - ProcessInfo: For environment variable access (AMP_CURRENT_THREAD_ID)
+ *
+ * @internal
+ * @since 0.4.0
+ */
+const ThreadLayer = Layer.mergeAll(
+  NodeContext.layer,
+  ProcessInfoLive,
+  Time.Default
+).pipe(Layer.provideMerge(Layer.succeed(Clock.Clock, Clock.make())))
 
 /**
  * Schema for parsing comma-separated strings into unique, sorted arrays.
@@ -219,6 +241,7 @@ const threadAddCommand = Command.make(
 
       return 0
     }).pipe(
+      Effect.provide(ThreadLayer),
       Effect.catchAll((error: unknown) =>
         Effect.gen(function*() {
           const errorMessage = error instanceof Error ? error.message : String(error)
@@ -299,6 +322,7 @@ const threadListCommand = Command.make(
 
       return 0
     }).pipe(
+      Effect.provide(ThreadLayer),
       Effect.catchAll((error: unknown) =>
         Effect.gen(function*() {
           const errorMessage = error instanceof Error ? error.message : String(error)
@@ -332,8 +356,12 @@ const threadListCommand = Command.make(
  * effect-migrate thread list --json
  * ```
  */
-export const threadCommand = Command.make("thread", {}, () =>
-  Effect.gen(function*() {
-    yield* Console.log("Use 'thread add' or 'thread list'")
-    return 0
-  })).pipe(Command.withSubcommands([threadAddCommand, threadListCommand]))
+export const threadCommand = Command.make(
+  "thread",
+  {},
+  () =>
+    Effect.gen(function*() {
+      yield* Console.log("Use 'thread add' or 'thread list'")
+      return 0
+    })
+).pipe(Command.withSubcommands([threadAddCommand, threadListCommand]))

@@ -18,9 +18,10 @@
 **Key capabilities:**
 
 - **Rule System** — Pattern rules (regex matching) and boundary rules (import restrictions)
-- **Services** — FileDiscovery, ImportIndex, RuleRunner (using Effect Layers)
+- **Services** — FileDiscovery, ImportIndex, RuleRunner, Time, ProcessInfo (using Effect Layers)
 - **Schema Validation** — Config loading and validation with `@effect/schema`
 - **Amp Context Generation** — Structured output for AI coding agents (index.json, audit.json, metrics.json, threads.json)
+- **Checkpoint Management** — Time-series audit persistence with delta computation and thread linking
 - **Preset Loading** — Dynamic preset imports with workspace-aware resolution
 - **Resource Safety** — Lazy file loading, memory-efficient processing
 - **Platform-Agnostic** — Uses `@effect/platform` abstractions (no direct Node.js APIs)
@@ -50,6 +51,8 @@ pnpm add @effect-migrate/core
 - `FileDiscovery` — File system operations with lazy loading and caching
 - `ImportIndex` — Build and query import graphs for boundary rules
 - `RuleRunner` — Execute rules with context and dependency injection
+- `Time` — Testable date/time abstraction for checkpoint timestamps
+- `ProcessInfo` — Testable environment variable access (e.g., `AMP_CURRENT_THREAD_ID`)
 
 ### Configuration
 
@@ -65,6 +68,15 @@ pnpm add @effect-migrate/core
 - `updateIndexWithThreads()` — Update index.json with thread references
 - `addThread()` / `readThreads()` — Manage thread tracking
 - Result normalization and key derivation for delta computation
+
+### Checkpoint Management
+
+- `createCheckpoint()` — Create time-series audit snapshots with thread linking
+- `readManifest()` / `writeManifest()` — Manage checkpoint metadata
+- `listCheckpoints()` — Query checkpoint history
+- `getCheckpoint()` — Load specific checkpoint by ID
+- `computeDelta()` — Calculate differences between checkpoints
+- `generateCheckpointId()` — Create filesystem-safe timestamp IDs
 
 ### Domain Types
 
@@ -357,6 +369,12 @@ import { FileDiscovery, FileDiscoveryLive } from "@effect-migrate/core"
 import { ImportIndex, ImportIndexLive, ImportParseError } from "@effect-migrate/core"
 import { RuleRunner, RuleRunnerLive, RuleRunnerLayer } from "@effect-migrate/core"
 import type { RuleRunnerService } from "@effect-migrate/core"
+
+// Time and ProcessInfo services
+import { Time, TimeLive, TimeTest } from "@effect-migrate/core"
+import type { TimeService } from "@effect-migrate/core"
+import { ProcessInfo, ProcessInfoLive, ProcessInfoTest } from "@effect-migrate/core"
+import type { ProcessInfoService } from "@effect-migrate/core"
 ```
 
 ### Configuration
@@ -400,6 +418,18 @@ import {
 
 // Thread management
 import { addThread, readThreads } from "@effect-migrate/core"
+
+// Checkpoint management
+import {
+  createCheckpoint,
+  readManifest,
+  writeManifest,
+  listCheckpoints,
+  getCheckpoint,
+  computeDelta,
+  generateCheckpointId,
+  detectThreadId
+} from "@effect-migrate/core"
 
 // Constants
 import { AMP_OUT_DEFAULT } from "@effect-migrate/core"

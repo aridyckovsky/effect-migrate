@@ -10,7 +10,7 @@
  */
 
 import * as Schema from "effect/Schema"
-import { RULE_KINDS } from "../rules/types.js"
+import { RuleKindSchema } from "../rules/types.js"
 import { Semver } from "./common.js"
 
 /**
@@ -26,7 +26,7 @@ export const RuleResultSchema = Schema.Struct({
   /** Unique rule identifier */
   id: Schema.String,
   /** Rule type (pattern, boundary, etc.) */
-  ruleKind: Schema.Literal(...RULE_KINDS),
+  ruleKind: RuleKindSchema,
   /** Severity level */
   severity: Schema.Literal("error", "warning", "info"),
   /** Human-readable message */
@@ -142,7 +142,7 @@ export const RuleDef = Schema.Struct({
   /** Unique rule identifier */
   id: Schema.String,
   /** Rule type (pattern, boundary, docs, metrics) */
-  kind: Schema.Literal(...RULE_KINDS),
+  kind: RuleKindSchema,
   /** Severity level */
   severity: Schema.Literal("error", "warning", "info"),
   /** Human-readable message */
@@ -310,6 +310,132 @@ export const AmpAuditContext = Schema.Struct({
 })
 
 /**
+ * Delta statistics between checkpoints.
+ *
+ * Represents the difference in findings between two consecutive audits.
+ * Positive values indicate increase, negative values indicate decrease.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const DeltaStats = Schema.Struct({
+  /** Change in error count */
+  errors: Schema.Number,
+  /** Change in warning count */
+  warnings: Schema.Number,
+  /** Change in info count */
+  info: Schema.Number,
+  /** Change in total findings */
+  totalFindings: Schema.Number
+})
+
+/**
+ * Checkpoint summary for index navigation (last N checkpoints).
+ *
+ * Lightweight summary for displaying recent checkpoint history in index.json.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const CheckpointSummary = Schema.Struct({
+  /** Checkpoint ID (filesystem-safe timestamp) */
+  id: Schema.String,
+  /** ISO timestamp */
+  timestamp: Schema.DateTimeUtc,
+  /** Amp thread ID if audit was run during a thread */
+  thread: Schema.optional(Schema.String),
+  /** Findings summary */
+  summary: FindingsSummary,
+  /** Delta from previous checkpoint */
+  delta: Schema.optional(DeltaStats)
+})
+
+/**
+ * Checkpoint metadata in manifest.json.
+ *
+ * Full metadata for a checkpoint including path, version info, and optional
+ * user-provided categorization (description, tags).
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const CheckpointMetadata = Schema.Struct({
+  /** Checkpoint ID (filesystem-safe timestamp) */
+  id: Schema.String,
+  /** ISO timestamp */
+  timestamp: Schema.DateTimeUtc,
+  /** Relative path to checkpoint file */
+  path: Schema.String,
+  /** Amp thread ID */
+  thread: Schema.optional(Schema.String),
+  /** Audit schema version */
+  schemaVersion: Semver,
+  /** Tool version */
+  toolVersion: Schema.String,
+  /** Summary statistics */
+  summary: FindingsSummary,
+  /** Delta from previous */
+  delta: Schema.optional(DeltaStats),
+  /** User description (optional) */
+  description: Schema.optional(Schema.String),
+  /** Tags (optional) */
+  tags: Schema.optional(Schema.Array(Schema.String))
+})
+
+/**
+ * Checkpoint manifest (complete history).
+ *
+ * Maintains the full list of checkpoints in newest-first order for
+ * efficient navigation and delta computation.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const CheckpointManifest = Schema.Struct({
+  /** Manifest schema version */
+  schemaVersion: Semver,
+  /** Project root */
+  projectRoot: Schema.String,
+  /** All checkpoints (newest first) */
+  checkpoints: Schema.Array(CheckpointMetadata)
+})
+
+/**
+ * Individual checkpoint file (full audit snapshot).
+ *
+ * A complete audit snapshot stored as a checkpoint. This is essentially
+ * AmpAuditContext with an additional checkpointId field for tracking.
+ *
+ * @category Schema
+ * @since 0.2.0
+ */
+export const AuditCheckpoint = Schema.Struct({
+  /** Audit format version */
+  schemaVersion: Semver,
+  /** Audit revision number */
+  revision: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(1)
+  ),
+  /** Checkpoint ID (matches filename) */
+  checkpointId: Schema.String,
+  /** effect-migrate version */
+  toolVersion: Schema.String,
+  /** Project root */
+  projectRoot: Schema.String,
+  /** ISO timestamp */
+  timestamp: Schema.DateTimeUtc,
+  /** Amp thread ID */
+  thread: Schema.optional(Schema.String),
+  /** Normalized findings (FindingsGroup from PR2) */
+  findings: FindingsGroup,
+  /** Config snapshot */
+  config: ConfigSnapshot,
+  /** Thread references (if any) */
+  threads: Schema.optional(Schema.Array(ThreadReference))
+})
+
+/**
  * Index schema that points to other context files.
  *
  * The index.json file serves as an entry point to the Amp context directory,
@@ -326,8 +452,19 @@ export const AmpAuditContext = Schema.Struct({
  *   "toolVersion": "0.2.0",
  *   "projectRoot": ".",
  *   "timestamp": "2025-11-06T12:00:00.000Z",
+ *   "latestCheckpoint": "2025-11-08T14-30-00Z",
+ *   "checkpoints": [
+ *     {
+ *       "id": "2025-11-08T14-30-00Z",
+ *       "timestamp": "2025-11-08T14:30:00.000Z",
+ *       "summary": { "errors": 5, "warnings": 10, "info": 2, "totalFiles": 3, "totalFindings": 17 },
+ *       "delta": { "errors": -2, "warnings": 1, "info": 0, "totalFindings": -1 }
+ *     }
+ *   ],
  *   "files": {
  *     "audit": "audit.json",
+ *     "checkpoints": "./checkpoints",
+ *     "manifest": "./checkpoints/manifest.json",
  *     "badges": "badges.md",
  *     "threads": "threads.json"
  *   }
@@ -343,10 +480,18 @@ export const AmpContextIndex = Schema.Struct({
   projectRoot: Schema.String,
   /** ISO timestamp when index was generated */
   timestamp: Schema.DateTimeUtc,
+  /** Latest checkpoint ID (if checkpoints exist) */
+  latestCheckpoint: Schema.optional(Schema.String),
+  /** Recent checkpoint history (last 10) */
+  checkpoints: Schema.optional(Schema.Array(CheckpointSummary)),
   /** Relative paths to context files */
   files: Schema.Struct({
     /** Path to audit.json */
     audit: Schema.String,
+    /** Path to checkpoints directory */
+    checkpoints: Schema.optional(Schema.String),
+    /** Path to checkpoint manifest */
+    manifest: Schema.optional(Schema.String),
     /** Path to metrics.json (future) */
     metrics: Schema.optional(Schema.String),
     /** Path to badges.md */
@@ -493,3 +638,8 @@ export type RuleDef = Schema.Schema.Type<typeof RuleDef>
 export type CompactRange = Schema.Schema.Type<typeof CompactRange>
 export type CompactResult = Schema.Schema.Type<typeof CompactResult>
 export type FindingsGroup = Schema.Schema.Type<typeof FindingsGroup>
+export type DeltaStats = Schema.Schema.Type<typeof DeltaStats>
+export type CheckpointSummary = Schema.Schema.Type<typeof CheckpointSummary>
+export type CheckpointMetadata = Schema.Schema.Type<typeof CheckpointMetadata>
+export type CheckpointManifest = Schema.Schema.Type<typeof CheckpointManifest>
+export type AuditCheckpoint = Schema.Schema.Type<typeof AuditCheckpoint>

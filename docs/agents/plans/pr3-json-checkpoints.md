@@ -1,14 +1,12 @@
 ---
 created: 2025-11-06
-lastUpdated: 2025-11-06
-author: Generated via Amp (Oracle + Librarian analysis)
+lastUpdated: 2025-11-08
+author: Generated via Amp (Oracle + Librarian analysis) - Revised based on PR1/PR2 actuals
 status: ready
 thread: https://ampcode.com/threads/T-5bd34c50-9752-4d71-8768-e8290de2c380
 audience: Development team and AI coding agents
 tags: [pr-plan, checkpoints, persistence, wave1, time-series, delta-computation]
 related:
-  - ./pr1-version-registry.md
-  - ./pr2-normalized-schema.md
   - ./checkpoint-based-audit-persistence.md
   - ./comprehensive-data-architecture.md
   - ../concepts/amp-integration.md
@@ -23,8 +21,8 @@ Implement time-series checkpoint persistence with thread linking and delta compu
 **Estimated Effort:** 4-6 hours coding + 1-2 hours testing
 
 **Dependencies:**
-- PR1: Version Registry (schema versioning infrastructure)
-- PR2: Normalized Schema (efficient data structure)
+- ✅ PR2: Normalized Schema (complete - schema 0.2.0 with FindingsGroup)
+- ✅ Schema versioning infrastructure (complete - SCHEMA_VERSION in core)
 
 ---
 
@@ -34,83 +32,108 @@ This PR implements the JSON checkpoint system from the comprehensive data archit
 
 1. **Historical tracking**: Preserve audit snapshots instead of overwriting
 2. **Progress monitoring**: Calculate deltas between consecutive audits
-3. **Thread association**: Auto-link checkpoints to Amp threads via `AMP_THREAD_ID`
+3. **Thread association**: Auto-link checkpoints to Amp threads via `AMP_CURRENT_THREAD_ID`
 4. **Agent navigation**: Provide O(1) access to latest audit via symlink and index
 
-**Key Principle:** Use normalized schema from PR2 for efficient storage (50-70% size reduction).
+**Key Principle:** Use normalized schema (FindingsGroup) from PR2 for efficient storage (40-70% size reduction).
 
 ---
 
-## Implementation Order
+## What We Already Have (from PR1/PR2)
 
-### Phase 1: Checkpoint Manager Module (2-3 hours)
+### Schema Infrastructure ✅
 
-Create core checkpoint persistence logic with Effect-TS patterns.
+**Location:** `packages/core/src/schema/`
 
-#### File: packages/cli/src/amp/checkpoint-manager.ts
+- `versions.ts`: Single `SCHEMA_VERSION = "0.2.0"` for all artifacts
+- `amp.ts`: Complete schemas including:
+  - `AmpAuditContext`: Main audit schema with `FindingsGroup`
+  - `AmpContextIndex`: Navigation index schema
+  - `ThreadEntry`: Thread entry for threads.json
+  - `ThreadsFile`: Threads file schema
+  - `FindingsSummary`: Summary statistics (errors, warnings, info, totalFiles, totalFindings)
 
-**Purpose:** Checkpoint creation, listing, reading, and delta computation.
+### Amp Context Writer ✅
 
-**Code:**
+**Location:** `packages/core/src/amp/context-writer.ts`
+
+- ✅ Auto-detects `AMP_CURRENT_THREAD_ID` environment variable
+- ✅ Auto-adds threads to threads.json with smart tags and descriptions
+- ✅ Writes audit.json, index.json, badges.md
+- ✅ Increments revision number on each audit
+- ✅ Uses `FindingsGroup` (normalized schema) for findings
+
+### Thread Management ✅
+
+**Location:** `packages/core/src/amp/thread-manager.ts`
+
+- ✅ `addThread()`: Add thread entries
+- ✅ `readThreads()`: Read threads.json
+- ✅ Thread auto-registration during audit if `AMP_CURRENT_THREAD_ID` is set
+
+### Normalization ✅
+
+**Location:** `packages/core/src/amp/normalizer.ts`
+
+- ✅ `normalizeResults()`: Convert RuleResult[] to FindingsGroup
+- ✅ `expandResult()`: Convert back to flat format
+- ✅ `deriveResultKey()`: Generate stable content-based keys for delta computation
+- ✅ `rebuildGroups()`: Rebuild groups from results array
+
+---
+
+## What We Need to Implement
+
+### 1. Checkpoint Directory Structure
+
+```
+.amp/effect-migrate/
+├── index.json                    # Updated with checkpoint info
+├── audit.json                    # Symlink to latest checkpoint
+├── checkpoints/
+│   ├── 2025-11-08T10-00-00Z.json # First checkpoint
+│   ├── 2025-11-08T11-30-00Z.json # Second checkpoint
+│   ├── 2025-11-08T14-15-00Z.json # Third checkpoint
+│   └── manifest.json             # Checkpoint metadata
+├── threads.json                  # Existing thread tracking
+├── metrics.json                  # Existing metrics
+└── badges.md                     # Existing badges
+```
+
+### 2. New Schemas (in packages/core/src/schema/amp.ts)
+
+Add checkpoint-specific schemas alongside existing ones:
 
 ```typescript
 /**
- * Checkpoint Manager - Time-series audit persistence.
- *
- * @module @effect-migrate/cli/amp/checkpoint-manager
- * @since 0.3.0
- */
-
-import * as FileSystem from "@effect/platform/FileSystem"
-import * as Path from "@effect/platform/Path"
-import * as Clock from "effect/Clock"
-import * as Console from "effect/Console"
-import * as DateTime from "effect/DateTime"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schema from "effect/Schema"
-import * as Array from "effect/Array"
-import * as Data from "effect/Data"
-import { SCHEMA_VERSIONS } from "@effect-migrate/core"
-import type { RuleResult, Config } from "@effect-migrate/core"
-import { normalizeResults, type NormalizedFindings } from "./schema.js"
-
-// ============================================================================
-// Schemas
-// ============================================================================
-
-/**
- * Checkpoint summary for index navigation.
+ * Checkpoint summary for index navigation (last N checkpoints).
  */
 export const CheckpointSummary = Schema.Struct({
-  /** ISO timestamp (e.g., "2025-11-06T10:00:00Z") */
+  /** Checkpoint ID (filesystem-safe timestamp) */
+  id: Schema.String,
+  
+  /** ISO timestamp */
   timestamp: Schema.String,
 
   /** Amp thread ID if audit was run during a thread */
   thread: Schema.optional(Schema.String),
 
   /** Findings summary */
-  summary: Schema.Struct({
-    errors: Schema.Number,
-    warnings: Schema.Number,
-    totalFiles: Schema.Number,
-    totalFindings: Schema.Number
-  }),
+  summary: FindingsSummary,
 
-  /** Delta from previous checkpoint (positive = more, negative = fixed) */
+  /** Delta from previous checkpoint */
   delta: Schema.optional(
     Schema.Struct({
       errors: Schema.Number,
       warnings: Schema.Number,
+      info: Schema.Number,
       totalFindings: Schema.Number
     })
   )
 })
 
-export type CheckpointSummary = Schema.Schema.Type<typeof CheckpointSummary>
-
 /**
- * Checkpoint metadata in manifest.
+ * Checkpoint metadata in manifest.json.
  */
 export const CheckpointMetadata = Schema.Struct({
   /** Checkpoint ID (filesystem-safe timestamp) */
@@ -132,18 +155,14 @@ export const CheckpointMetadata = Schema.Struct({
   toolVersion: Schema.String,
 
   /** Summary statistics */
-  summary: Schema.Struct({
-    errors: Schema.Number,
-    warnings: Schema.Number,
-    totalFiles: Schema.Number,
-    totalFindings: Schema.Number
-  }),
+  summary: FindingsSummary,
 
   /** Delta from previous */
   delta: Schema.optional(
     Schema.Struct({
       errors: Schema.Number,
       warnings: Schema.Number,
+      info: Schema.Number,
       totalFindings: Schema.Number
     })
   ),
@@ -155,14 +174,12 @@ export const CheckpointMetadata = Schema.Struct({
   tags: Schema.optional(Schema.Array(Schema.String))
 })
 
-export type CheckpointMetadata = Schema.Schema.Type<typeof CheckpointMetadata>
-
 /**
  * Checkpoint manifest (complete history).
  */
 export const CheckpointManifest = Schema.Struct({
   /** Manifest schema version */
-  schemaVersion: Schema.String,
+  schemaVersion: Semver,
 
   /** Project root */
   projectRoot: Schema.String,
@@ -171,17 +188,20 @@ export const CheckpointManifest = Schema.Struct({
   checkpoints: Schema.Array(CheckpointMetadata)
 })
 
-export type CheckpointManifest = Schema.Schema.Type<typeof CheckpointManifest>
-
 /**
  * Individual checkpoint file (full audit snapshot).
+ * 
+ * This is essentially AmpAuditContext with a checkpointId field.
  */
 export const AuditCheckpoint = Schema.Struct({
   /** Audit format version */
-  schemaVersion: Schema.String,
-
-  /** Checkpoint revision number */
-  revision: Schema.Number,
+  schemaVersion: Semver,
+  
+  /** Audit revision number */
+  revision: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(1)
+  ),
 
   /** Checkpoint ID (matches filename) */
   checkpointId: Schema.String,
@@ -198,17 +218,95 @@ export const AuditCheckpoint = Schema.Struct({
   /** Amp thread ID */
   thread: Schema.optional(Schema.String),
 
-  /** Normalized findings (from PR2) - always present, never null */
-  normalized: Schema.Unknown, // Will use NormalizedFindings from schema.ts
+  /** Normalized findings (FindingsGroup from PR2) */
+  findings: FindingsGroup,
 
   /** Config snapshot */
-  config: Schema.Struct({
-    rulesEnabled: Schema.Array(Schema.String),
-    failOn: Schema.Array(Schema.String)
+  config: ConfigSnapshot,
+
+  /** Thread references (if any) */
+  threads: Schema.optional(Schema.Array(ThreadReference))
+})
+```
+
+### 3. Update AmpContextIndex Schema
+
+**File:** `packages/core/src/schema/amp.ts`
+
+Update the existing index schema to include checkpoint navigation:
+
+```diff
+export const AmpContextIndex = Schema.Struct({
+  /** Schema version for all artifacts */
+  schemaVersion: Semver,
+  /** effect-migrate tool version */
+  toolVersion: Schema.String,
+  /** Project root directory */
+  projectRoot: Schema.String,
+  /** ISO timestamp when index was generated */
+  timestamp: Schema.DateTimeUtc,
++ /** Latest checkpoint ID (if checkpoints exist) */
++ latestCheckpoint: Schema.optional(Schema.String),
++ /** Recent checkpoint history (last 10) */
++ checkpoints: Schema.optional(Schema.Array(CheckpointSummary)),
+  /** Relative paths to context files */
+  files: Schema.Struct({
+    /** Path to audit.json */
+    audit: Schema.String,
++   /** Path to checkpoints directory (if exists) */
++   checkpoints: Schema.optional(Schema.String),
++   /** Path to checkpoint manifest (if exists) */
++   manifest: Schema.optional(Schema.String),
+    /** Path to metrics.json (future) */
+    metrics: Schema.optional(Schema.String),
+    /** Path to badges.md */
+    badges: Schema.optional(Schema.String),
+    /** Path to threads.json (present when threads exist) */
+    threads: Schema.optional(Schema.String)
   })
 })
+```
 
-export type AuditCheckpoint = Schema.Schema.Type<typeof AuditCheckpoint>
+---
+
+## Implementation Order
+
+### Phase 1: Checkpoint Manager Module (2-3 hours)
+
+**File:** `packages/core/src/amp/checkpoint-manager.ts`
+
+**Purpose:** Checkpoint creation, listing, reading, and delta computation.
+
+**Implementation:**
+
+```typescript
+/**
+ * Checkpoint Manager - Time-series audit persistence.
+ *
+ * @module @effect-migrate/core/amp/checkpoint-manager
+ * @since 0.5.0
+ */
+
+import * as FileSystem from "@effect/platform/FileSystem"
+import * as Path from "@effect/platform/Path"
+import * as Clock from "effect/Clock"
+import * as Console from "effect/Console"
+import * as DateTime from "effect/DateTime"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import * as Data from "effect/Data"
+import type { FindingsGroup, FindingsSummary } from "../schema/amp.js"
+import { 
+  CheckpointSummary, 
+  CheckpointMetadata, 
+  CheckpointManifest,
+  AuditCheckpoint 
+} from "../schema/amp.js"
+import type { Config } from "../schema/Config.js"
+import { SCHEMA_VERSION } from "../schema/versions.js"
+import { getPackageMeta } from "./package-meta.js"
+import { readThreads } from "./thread-manager.js"
 
 // ============================================================================
 // Errors
@@ -234,7 +332,7 @@ export class ManifestReadError extends Data.TaggedError("ManifestReadError")<{
 
 /**
  * Generate checkpoint ID from timestamp.
- * Format: "2025-11-06T10-00-00Z" (filesystem-safe).
+ * Format: "2025-11-08T10-00-00Z" (filesystem-safe).
  */
 export const generateCheckpointId = (timestamp: DateTime.DateTime): string => {
   const iso = DateTime.formatIso(timestamp)
@@ -244,21 +342,22 @@ export const generateCheckpointId = (timestamp: DateTime.DateTime): string => {
 /**
  * Detect Amp thread ID from environment.
  *
- * Amp sets AMP_THREAD_ID when running commands during a thread.
+ * Amp sets AMP_CURRENT_THREAD_ID when running commands during a thread.
  */
 export const detectThreadId = (): string | undefined => {
-  return process.env.AMP_THREAD_ID
+  return process.env.AMP_CURRENT_THREAD_ID
 }
 
 /**
  * Compute delta between two summaries.
  */
 export const computeDelta = (
-  previous: CheckpointSummary["summary"],
-  current: CheckpointSummary["summary"]
-): CheckpointSummary["delta"] => ({
+  previous: FindingsSummary,
+  current: FindingsSummary
+) => ({
   errors: current.errors - previous.errors,
   warnings: current.warnings - previous.warnings,
+  info: current.info - previous.info,
   totalFindings: current.totalFindings - previous.totalFindings
 })
 
@@ -273,14 +372,14 @@ export const computeDelta = (
  * 1. Generate checkpoint ID from current time
  * 2. Write checkpoint file to checkpoints/
  * 3. Update manifest.json with metadata
- * 4. Update index.json with latest checkpoint
- * 5. Update audit.json symlink (or copy on Windows)
+ * 4. Update audit.json symlink (or copy on Windows)
+ * 5. Return checkpoint metadata
  */
 export const createCheckpoint = (
   outputDir: string,
-  projectRoot: string,
-  normalized: NormalizedFindings,
-  config: Config
+  findings: FindingsGroup,
+  config: Config,
+  revision: number
 ): Effect.Effect<
   CheckpointMetadata,
   CheckpointWriteError | ManifestReadError,
@@ -289,33 +388,52 @@ export const createCheckpoint = (
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const clock = yield* Clock.Clock
 
     // 1. Generate checkpoint ID
     const now = yield* Clock.currentTimeMillis.pipe(
-      Effect.map((millis) => DateTime.unsafeFromMillis(millis))
+      Effect.map((millis) => DateTime.unsafeMake(millis))
     )
     const checkpointId = generateCheckpointId(now)
 
     yield* Console.log(`Creating checkpoint: ${checkpointId}`)
 
-    // 2. Build checkpoint object
-    const toolVersion = SCHEMA_VERSIONS.TOOL_VERSION
+    // 2. Get metadata
+    const { toolVersion } = yield* getPackageMeta
     const threadId = detectThreadId()
 
-    const checkpoint: AuditCheckpoint = {
-      schemaVersion: SCHEMA_VERSIONS.AUDIT,
-      revision: SCHEMA_VERSIONS.REVISION,
+    // Read threads to include in checkpoint
+    const threadsFile = yield* readThreads(outputDir).pipe(
+      Effect.catchAll(() => Effect.succeed({ 
+        schemaVersion: SCHEMA_VERSION, 
+        toolVersion, 
+        threads: [] 
+      }))
+    )
+    const currentThread = threadsFile.threads.find(t => t.auditRevision === revision)
+    const auditThreads = currentThread ? [{
+      url: currentThread.url,
+      timestamp: currentThread.createdAt,
+      auditRevision: currentThread.auditRevision ?? revision,
+      ...(currentThread.description && { description: currentThread.description }),
+      ...(currentThread.tags && currentThread.tags.length > 0 && { tags: currentThread.tags }),
+      ...(currentThread.scope && currentThread.scope.length > 0 && { scope: currentThread.scope })
+    }] : []
+
+    // Build checkpoint object (matches AuditCheckpoint schema)
+    const checkpoint = {
+      schemaVersion: SCHEMA_VERSION,
+      revision,
       checkpointId,
       toolVersion,
-      projectRoot,
+      projectRoot: ".",
       timestamp: now,
-      thread: threadId,
-      normalized: normalized as any, // Cast to unknown for now
+      ...(threadId && { thread: threadId }),
+      findings,
       config: {
-        rulesEnabled: config.patterns?.map((r) => r.id) ?? [],
-        failOn: ["error"] // From config.failOn
-      }
+        rulesEnabled: findings.rules.map(r => r.id).sort(),
+        failOn: [...(config.report?.failOn ?? ["error"])].sort()
+      },
+      ...(auditThreads.length > 0 && { threads: auditThreads })
     }
 
     // 3. Write checkpoint file
@@ -323,8 +441,12 @@ export const createCheckpoint = (
     yield* fs.makeDirectory(checkpointsDir, { recursive: true })
 
     const checkpointPath = path.join(checkpointsDir, `${checkpointId}.json`)
-    const checkpointJson = JSON.stringify(checkpoint, null, 2)
-    yield* fs.writeFileString(checkpointPath, checkpointJson).pipe(
+    
+    // Encode with schema validation
+    const encodeCheckpoint = Schema.encodeSync(AuditCheckpoint)
+    const checkpointJson = encodeCheckpoint(checkpoint as any)
+    
+    yield* fs.writeFileString(checkpointPath, JSON.stringify(checkpointJson, null, 2)).pipe(
       Effect.catchAll((error) =>
         Effect.fail(
           new CheckpointWriteError({
@@ -340,8 +462,8 @@ export const createCheckpoint = (
     const manifest = yield* readManifest(checkpointsDir).pipe(
       Effect.catchTag("ManifestReadError", () =>
         Effect.succeed({
-          schemaVersion: "1.0.0",
-          projectRoot,
+          schemaVersion: SCHEMA_VERSION,
+          projectRoot: ".",
           checkpoints: []
         })
       )
@@ -349,27 +471,30 @@ export const createCheckpoint = (
 
     // Compute delta from previous checkpoint
     const previousSummary = manifest.checkpoints[0]?.summary
-    const currentSummary = normalized.summary
+    const currentSummary = findings.summary
     const delta = previousSummary ? computeDelta(previousSummary, currentSummary) : undefined
 
     const metadata: CheckpointMetadata = {
       id: checkpointId,
       timestamp: now,
       path: `./${checkpointId}.json`,
-      thread: threadId,
-      schemaVersion: SCHEMA_VERSIONS.AUDIT,
+      ...(threadId && { thread: threadId }),
+      schemaVersion: SCHEMA_VERSION,
       toolVersion,
       summary: currentSummary,
-      delta
+      ...(delta && { delta })
     }
 
-    const updatedManifest: CheckpointManifest = {
+    const updatedManifest = {
       ...manifest,
       checkpoints: [metadata, ...manifest.checkpoints] // Newest first
     }
 
     const manifestPath = path.join(checkpointsDir, "manifest.json")
-    yield* fs.writeFileString(manifestPath, JSON.stringify(updatedManifest, null, 2)).pipe(
+    const encodeManifest = Schema.encodeSync(CheckpointManifest)
+    const manifestJson = encodeManifest(updatedManifest as any)
+    
+    yield* fs.writeFileString(manifestPath, JSON.stringify(manifestJson, null, 2)).pipe(
       Effect.catchAll((error) =>
         Effect.fail(new CheckpointWriteError({ reason: `Failed to update manifest: ${error}` }))
       )
@@ -403,11 +528,11 @@ const updateLatestSymlink = (
     const exists = yield* fs.exists(auditPath)
     if (exists) {
       yield* fs.remove(auditPath, { recursive: false }).pipe(
-        Effect.catchAll(() => Effect.void) // Ignore errors
+        Effect.catchAll(() => Effect.void)
       )
     }
 
-    // Check if platform supports symlinks (Unix-like)
+    // Check if platform supports symlinks
     const isWindows = process.platform === "win32"
 
     if (isWindows) {
@@ -419,15 +544,15 @@ const updateLatestSymlink = (
       )
       yield* fs.writeFileString(auditPath, content).pipe(
         Effect.catchAll((error) =>
-          Effect.fail(
-            new CheckpointWriteError({ reason: `Failed to copy audit.json: ${error}` })
-          )
+          Effect.fail(new CheckpointWriteError({ reason: `Failed to copy audit.json: ${error}` }))
         )
       )
     } else {
       // Symlink on Unix
       const relativePath = path.relative(path.dirname(auditPath), checkpointPath)
-      yield* Effect.promise(() => import("node:fs/promises").then((fs) => fs.symlink(relativePath, auditPath))).pipe(
+      yield* Effect.promise(() => 
+        import("node:fs/promises").then((fs) => fs.symlink(relativePath, auditPath))
+      ).pipe(
         Effect.catchAll((error) =>
           Effect.fail(new CheckpointWriteError({ reason: `Failed to create symlink: ${error}` }))
         )
@@ -493,18 +618,19 @@ export const listCheckpoints = (
 
     const manifest = yield* readManifest(checkpointsDir)
 
-    const summaries: CheckpointSummary[] = manifest.checkpoints.map((meta) => ({
+    const checkpoints = manifest.checkpoints.slice(0, limit)
+    
+    return checkpoints.map(meta => ({
+      id: meta.id,
       timestamp: DateTime.formatIso(meta.timestamp),
-      thread: meta.thread,
+      ...(meta.thread && { thread: meta.thread }),
       summary: meta.summary,
-      delta: meta.delta
+      ...(meta.delta && { delta: meta.delta })
     }))
-
-    return limit ? summaries.slice(0, limit) : summaries
   })
 
 /**
- * Get latest checkpoint summary.
+ * Get latest checkpoint metadata.
  */
 export const getLatestCheckpoint = (
   outputDir: string
@@ -517,11 +643,7 @@ export const getLatestCheckpoint = (
     const path = yield* Path.Path
     const checkpointsDir = path.join(outputDir, "checkpoints")
 
-    const manifest = yield* readManifest(checkpointsDir).pipe(
-      Effect.catchTag("ManifestReadError", () =>
-        Effect.succeed({ schemaVersion: "1.0.0", projectRoot: ".", checkpoints: [] })
-      )
-    )
+    const manifest = yield* readManifest(checkpointsDir)
 
     return manifest.checkpoints.length > 0
       ? Option.some(manifest.checkpoints[0])
@@ -534,29 +656,23 @@ export const getLatestCheckpoint = (
 export const readCheckpoint = (
   outputDir: string,
   checkpointId: string
-): Effect.Effect<AuditCheckpoint, CheckpointNotFoundError, FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<
+  AuditCheckpoint,
+  CheckpointNotFoundError,
+  FileSystem.FileSystem | Path.Path
+> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
 
     const checkpointPath = path.join(outputDir, "checkpoints", `${checkpointId}.json`)
 
-    const exists = yield* fs.exists(checkpointPath)
-    if (!exists) {
-      return yield* Effect.fail(
-        new CheckpointNotFoundError({
-          checkpointId,
-          message: `Checkpoint not found: ${checkpointId}`
-        })
-      )
-    }
-
     const content = yield* fs.readFileString(checkpointPath).pipe(
       Effect.catchAll((error) =>
         Effect.fail(
           new CheckpointNotFoundError({
             checkpointId,
-            message: `Failed to read checkpoint: ${error}`
+            message: `Checkpoint not found: ${error}`
           })
         )
       )
@@ -567,7 +683,7 @@ export const readCheckpoint = (
         Effect.fail(
           new CheckpointNotFoundError({
             checkpointId,
-            message: `Invalid checkpoint schema: ${error}`
+            message: `Invalid checkpoint format: ${error}`
           })
         )
       )
@@ -577,304 +693,103 @@ export const readCheckpoint = (
   })
 
 /**
- * Compute diff between two checkpoints.
+ * Compare two checkpoints and return delta.
  */
 export const diffCheckpoints = (
   outputDir: string,
   fromId: string,
   toId: string
-): Effect.Effect<
-  {
-    from: CheckpointSummary
-    to: CheckpointSummary
-    delta: CheckpointSummary["delta"]
-  },
-  CheckpointNotFoundError,
-  FileSystem.FileSystem | Path.Path
-> =>
+) =>
   Effect.gen(function* () {
-    const fromCheckpoint = yield* readCheckpoint(outputDir, fromId)
-    const toCheckpoint = yield* readCheckpoint(outputDir, toId)
+    const from = yield* readCheckpoint(outputDir, fromId)
+    const to = yield* readCheckpoint(outputDir, toId)
 
-    const fromSummary: CheckpointSummary = {
-      timestamp: DateTime.formatIso(fromCheckpoint.timestamp),
-      thread: fromCheckpoint.thread,
-      summary: (fromCheckpoint.findings as any).summary
-    }
-
-    const toSummary: CheckpointSummary = {
-      timestamp: DateTime.formatIso(toCheckpoint.timestamp),
-      thread: toCheckpoint.thread,
-      summary: (toCheckpoint.findings as any).summary
-    }
-
-    const delta = computeDelta(fromSummary.summary, toSummary.summary)
+    const delta = computeDelta(from.findings.summary, to.findings.summary)
 
     return {
-      from: fromSummary,
-      to: toSummary,
+      from: {
+        id: from.checkpointId,
+        timestamp: from.timestamp,
+        summary: from.findings.summary
+      },
+      to: {
+        id: to.checkpointId,
+        timestamp: to.timestamp,
+        summary: to.findings.summary
+      },
       delta
     }
   })
 ```
 
----
+### Phase 2: Integrate Checkpoint Creation into Context Writer (30 min)
 
-### Phase 2: Integrate with Audit Command (1 hour)
+**File:** `packages/core/src/amp/context-writer.ts`
 
-Update the `audit` command to use checkpoint manager instead of overwriting `audit.json`.
-
-#### File: packages/cli/src/commands/audit.ts (modifications)
-
-**Changes:**
+Modify the existing `writeAmpContext` to create checkpoints:
 
 ```diff
-  import { formatAuditResults } from "../formatters/audit-formatter.js"
-  import { writeAmpContext } from "../amp/context-writer.js"
-+ import { createCheckpoint } from "../amp/checkpoint-manager.js"
-
-  const auditCommand = Command.make("audit", {
-    ampOut: Options.directory("amp-out").pipe(Options.optional),
-    json: Options.boolean("json").pipe(Options.optional)
-  }, (opts) =>
-    Effect.gen(function* () {
-      const config = yield* loadConfig()
-      const results = yield* runAudit(config)
-
-      // Console output
-      if (opts.json) {
-        yield* Console.log(JSON.stringify(results, null, 2))
-      } else {
-        yield* formatAuditResults(results, config)
-      }
-
-      // Amp context output
-      if (opts.ampOut) {
--       yield* writeAmpContext(opts.ampOut, results, config)
-+       // Create checkpoint instead of overwriting audit.json
-+       const normalized = normalizeResults(results)
-+       const metadata = yield* createCheckpoint(
-+         opts.ampOut,
-+         ".", // projectRoot
-+         normalized,
-+         config
-+       )
-+
-+       yield* Console.log(``)
-+       yield* Console.log(`Checkpoint created: ${metadata.id}`)
-+       if (metadata.thread) {
-+         yield* Console.log(`  Linked to thread: ${metadata.thread}`)
-+       }
-+       if (metadata.delta) {
-+         const { errors, warnings, totalFindings } = metadata.delta
-+         const errSign = errors >= 0 ? "+" : ""
-+         const warnSign = warnings >= 0 ? "+" : ""
-+         yield* Console.log(
-+           `  Delta: ${errSign}${errors} errors, ${warnSign}${warnings} warnings`
-+         )
-+       }
-      }
-    })
-  )
-```
-
-**Note:** The `writeAmpContext` function from the old implementation will be deprecated in favor of checkpoint-based persistence.
-
----
-
-### Phase 3: Checkpoints CLI Subcommand (1-2 hours)
-
-Add CLI commands for viewing and managing checkpoints.
-
-#### File: packages/cli/src/commands/checkpoints.ts
-
-**Purpose:** User-facing commands for checkpoint history.
-
-**Code:**
-
-```typescript
-/**
- * Checkpoints CLI subcommand.
- *
- * @module @effect-migrate/cli/commands/checkpoints
- * @since 0.3.0
- */
-
-import * as Command from "@effect/cli/Command"
-import * as Args from "@effect/cli/Args"
-import * as Options from "@effect/cli/Options"
-import * as Effect from "effect/Effect"
-import * as Console from "effect/Console"
-import * as DateTime from "effect/DateTime"
-import {
-  listCheckpoints,
-  getLatestCheckpoint,
-  readCheckpoint,
-  diffCheckpoints,
-  type CheckpointSummary
-} from "../amp/checkpoint-manager.js"
-
-const ampOutOption = Options.directory("amp-out").pipe(
-  Options.withDefault(".amp/effect-migrate")
-)
-
-/**
- * List all checkpoints.
- */
-const listCommand = Command.make(
-  "list",
-  { ampOut: ampOutOption },
-  (opts) =>
-    Effect.gen(function* () {
-      const checkpoints = yield* listCheckpoints(opts.ampOut, 50) // Last 50
-
-      if (checkpoints.length === 0) {
-        yield* Console.log("No checkpoints found.")
-        return
-      }
-
-      // Table header
-      yield* Console.log(``)
-      yield* Console.log(`Recent Checkpoints (last ${checkpoints.length}):`)
-      yield* Console.log(``)
-      yield* Console.log(
-        `┌─────────────────────────┬────────────┬────────┬──────────┬────────┬───────────────┐`
-      )
-      yield* Console.log(
-        `│ Timestamp               │ Thread     │ Errors │ Warnings │ Total  │ Delta         │`
-      )
-      yield* Console.log(
-        `├─────────────────────────┼────────────┼────────┼──────────┼────────┼───────────────┤`
-      )
-
-      for (const cp of checkpoints) {
-        const threadCol = cp.thread?.padEnd(10) ?? "-".padEnd(10)
-        const errorsCol = cp.summary.errors.toString().padStart(6)
-        const warningsCol = cp.summary.warnings.toString().padStart(8)
-        const totalCol = cp.summary.totalFindings.toString().padStart(6)
-        const deltaCol = cp.delta
-          ? `${cp.delta.errors >= 0 ? "+" : ""}${cp.delta.errors} / ${cp.delta.warnings >= 0 ? "+" : ""}${cp.delta.warnings}`.padEnd(
-              13
-            )
-          : "-".padEnd(13)
-
-        yield* Console.log(
-          `│ ${cp.timestamp} │ ${threadCol} │ ${errorsCol} │ ${warningsCol} │ ${totalCol} │ ${deltaCol} │`
-        )
-      }
-
-      yield* Console.log(
-        `└─────────────────────────┴────────────┴────────┴──────────┴────────┴───────────────┘`
-      )
-      yield* Console.log(``)
-    })
-)
-
-/**
- * Show latest checkpoint.
- */
-const latestCommand = Command.make("latest", { ampOut: ampOutOption }, (opts) =>
+export const writeAmpContext = (outputDir: string, results: RuleResult[], config: Config) =>
   Effect.gen(function* () {
-    const latest = yield* getLatestCheckpoint(opts.ampOut)
+    // ... existing code for normalization and thread detection ...
+    
+    const findings = normalizeResults(normalizedInput)
++   
++   // Create checkpoint AFTER we have revision and findings
++   const checkpointMeta = yield* createCheckpoint(
++     outputDir,
++     findings,
++     config,
++     revision
++   ).pipe(
++     Effect.catchAll((error) =>
++       Console.warn(`Failed to create checkpoint: ${String(error)}`).pipe(
++         Effect.map(() => undefined)
++       )
++     )
++   )
 
-    if (latest._tag === "None") {
-      yield* Console.log("No checkpoints found.")
-      return
+    // Create audit context (existing logic)
+    // ...
+    
++   // Update index.json with checkpoint info
++   const recentCheckpoints = yield* listCheckpoints(outputDir, 10).pipe(
++     Effect.catchAll(() => Effect.succeed([]))
++   )
+    
+    const index: AmpContextIndexType = {
+      schemaVersion: SCHEMA_VERSION,
+      toolVersion,
+      projectRoot: ".",
+      timestamp,
++     ...(checkpointMeta && { latestCheckpoint: checkpointMeta.id }),
++     ...(recentCheckpoints.length > 0 && { checkpoints: recentCheckpoints }),
+      files: {
+        audit: "audit.json",
++       ...(checkpointMeta && { 
++         checkpoints: "./checkpoints",
++         manifest: "./checkpoints/manifest.json"
++       }),
+        metrics: "metrics.json",
+        badges: "badges.md",
+        ...(auditThreads.length > 0 && { threads: "threads.json" })
+      }
     }
-
-    const meta = latest.value
-    yield* Console.log(`Latest checkpoint: ${meta.id}`)
-    yield* Console.log(`  Timestamp: ${DateTime.formatIso(meta.timestamp)}`)
-    if (meta.thread) {
-      yield* Console.log(`  Thread: ${meta.thread}`)
-    }
-    yield* Console.log(`  Errors: ${meta.summary.errors}`)
-    yield* Console.log(`  Warnings: ${meta.summary.warnings}`)
-    yield* Console.log(`  Total findings: ${meta.summary.totalFindings}`)
-
-    if (meta.delta) {
-      const errSign = meta.delta.errors >= 0 ? "+" : ""
-      const warnSign = meta.delta.warnings >= 0 ? "+" : ""
-      yield* Console.log(
-        `  Delta: ${errSign}${meta.delta.errors} errors, ${warnSign}${meta.delta.warnings} warnings`
-      )
-    }
+    
+    // ... rest of existing code
   })
-)
-
-/**
- * Show specific checkpoint.
- */
-const showCommand = Command.make(
-  "show",
-  {
-    ampOut: ampOutOption,
-    checkpoint: Args.text({ name: "checkpoint-id" })
-  },
-  (opts) =>
-    Effect.gen(function* () {
-      const checkpoint = yield* readCheckpoint(opts.ampOut, opts.checkpoint)
-      yield* Console.log(JSON.stringify(checkpoint, null, 2))
-    })
-)
-
-/**
- * Compare two checkpoints.
- */
-const diffCommand = Command.make(
-  "diff",
-  {
-    ampOut: ampOutOption,
-    from: Args.text({ name: "from-checkpoint-id" }),
-    to: Args.text({ name: "to-checkpoint-id" }).pipe(Args.optional)
-  },
-  (opts) =>
-    Effect.gen(function* () {
-      const toId = opts.to
-        ? opts.to
-        : yield* getLatestCheckpoint(opts.ampOut).pipe(
-            Effect.flatMap((latest) =>
-              latest._tag === "Some"
-                ? Effect.succeed(latest.value.id)
-                : Effect.fail(new Error("No latest checkpoint"))
-            )
-          )
-
-      const result = yield* diffCheckpoints(opts.ampOut, opts.from, toId)
-
-      yield* Console.log(`Comparing checkpoints:`)
-      yield* Console.log(`  From: ${result.from.timestamp}`)
-      yield* Console.log(`  To:   ${result.to.timestamp}`)
-      yield* Console.log(``)
-      yield* Console.log(
-        `Errors:   ${result.from.summary.errors} → ${result.to.summary.errors} (${result.delta!.errors >= 0 ? "+" : ""}${result.delta!.errors})`
-      )
-      yield* Console.log(
-        `Warnings: ${result.from.summary.warnings} → ${result.to.summary.warnings} (${result.delta!.warnings >= 0 ? "+" : ""}${result.delta!.warnings})`
-      )
-      yield* Console.log(
-        `Total:    ${result.from.summary.totalFindings} → ${result.to.summary.totalFindings} (${result.delta!.totalFindings >= 0 ? "+" : ""}${result.delta!.totalFindings})`
-      )
-    })
-)
-
-/**
- * Checkpoints subcommand with list, latest, show, diff.
- */
-export const checkpointsCommand = Command.make("checkpoints").pipe(
-  Command.withSubcommands([listCommand, latestCommand, showCommand, diffCommand])
-)
 ```
 
-#### Register in Main CLI
+### Phase 3: CLI Commands (1-2 hours)
 
-**File: packages/cli/src/index.ts**
+**File:** `packages/cli/src/commands/checkpoints.ts`
+
+(See attached plan for full implementation - uses cli-table3 for formatting)
+
+**Register in main CLI:**
 
 ```diff
-  import { auditCommand } from "./commands/audit.js"
-  import { metricsCommand } from "./commands/metrics.js"
-  import { docsCommand } from "./commands/docs.js"
-  import { initCommand } from "./commands/init.js"
+// packages/cli/src/index.ts
 + import { checkpointsCommand } from "./commands/checkpoints.js"
 
   const cli = Command.make("effect-migrate").pipe(
@@ -882,8 +797,8 @@ export const checkpointsCommand = Command.make("checkpoints").pipe(
       auditCommand,
       metricsCommand,
       docsCommand,
--     initCommand
-+     initCommand,
+      initCommand,
+      threadCommand,
 +     checkpointsCommand
     ])
   )
@@ -891,252 +806,100 @@ export const checkpointsCommand = Command.make("checkpoints").pipe(
 
 ---
 
-### Phase 4: Update index.json with Checkpoint History (30 min)
-
-Modify `index.json` to include recent checkpoint history for agent navigation.
-
-#### File: packages/cli/src/amp/index-writer.ts (modifications)
-
-**Update schema:**
-
-```diff
-  export const AmpContextIndex = Schema.Struct({
-    schemaVersion: Schema.String,
-    versions: Schema.Struct({
-      audit: Schema.String,
-+     checkpoints: Schema.String,
-      metrics: Schema.optional(Schema.String),
-      threads: Schema.optional(Schema.String)
-    }),
-    toolVersion: Schema.String,
-    projectRoot: Schema.String,
-    timestamp: Schema.DateTimeUtc,
-+   latestCheckpoint: Schema.String,
-+   checkpoints: Schema.Array(CheckpointSummary),
-    files: Schema.Struct({
-      audit: Schema.String,
-+     checkpoints: Schema.String,
-+     manifest: Schema.String,
-      metrics: Schema.optional(Schema.String),
-      threads: Schema.optional(Schema.String),
-      badges: Schema.optional(Schema.String)
-    })
-  })
-```
-
-**Update index writer:**
-
-```typescript
-export const writeIndex = (
-  outputDir: string,
-  latestCheckpointId: string
-): Effect.Effect<void, IndexWriteError, FileSystem.FileSystem | Path.Path | Clock.Clock> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem
-    const path = yield* Path.Path
-
-    // Get recent checkpoints (last 10)
-    const checkpoints = yield* listCheckpoints(outputDir, 10).pipe(
-      Effect.catchAll(() => Effect.succeed([]))
-    )
-
-    const index: AmpContextIndex = {
-      schemaVersion: "1.2.0",
-      versions: {
-        audit: SCHEMA_VERSIONS.AUDIT,
-        checkpoints: "1.0.0",
-        metrics: "0.1.0",
-        threads: "1.0.0"
-      },
-      toolVersion: SCHEMA_VERSIONS.TOOL_VERSION,
-      projectRoot: ".",
-      timestamp: yield* Clock.currentTimeMillis.pipe(
-        Effect.map((millis) => DateTime.unsafeFromMillis(millis))
-      ),
-      latestCheckpoint: latestCheckpointId,
-      checkpoints,
-      files: {
-        audit: "./audit.json",
-        checkpoints: "./checkpoints",
-        manifest: "./checkpoints/manifest.json",
-        metrics: "./metrics.json",
-        threads: "./threads.json",
-        badges: "./badges.md"
-      }
-    }
-
-    const indexPath = path.join(outputDir, "index.json")
-    yield* fs.writeFileString(indexPath, JSON.stringify(index, null, 2)).pipe(
-      Effect.catchAll((error) =>
-        Effect.fail(new IndexWriteError({ reason: `Failed to write index: ${error}` }))
-      )
-    )
-  })
-```
-
----
-
-## Integration
-
-### With PR1 (Version Registry)
-
-- Use `SCHEMA_VERSIONS.AUDIT` for checkpoint schema version
-- Use `SCHEMA_VERSIONS.TOOL_VERSION` for tool version tracking
-- Store schema version in each checkpoint for compatibility
-
-### With PR2 (Normalized Schema)
-
-- Use `NormalizedFindings` type for checkpoint data
-- Leverage normalization for 50-70% size reduction
-- Maintain backwards compatibility with old audit.json format
-
----
-
 ## Testing
 
 ### Unit Tests
 
-**File: packages/cli/src/__tests__/checkpoint-manager.test.ts**
+**File:** `packages/core/test/amp/checkpoint-manager.test.ts`
 
 ```typescript
 import { describe, it, expect } from "@effect/vitest"
-import { Effect, Option } from "effect"
+import * as DateTime from "effect/DateTime"
 import {
   generateCheckpointId,
   detectThreadId,
-  computeDelta,
-  createCheckpoint,
-  listCheckpoints,
-  getLatestCheckpoint,
-  diffCheckpoints
-} from "../amp/checkpoint-manager.js"
-import * as DateTime from "effect/DateTime"
+  computeDelta
+} from "../../src/amp/checkpoint-manager.js"
 
 describe("CheckpointManager", () => {
   describe("generateCheckpointId", () => {
-    it.effect("should generate filesystem-safe ID", () =>
-      Effect.gen(function* () {
-        const dt = DateTime.unsafeFromString("2025-11-06T14:30:00.000Z")
-        const id = generateCheckpointId(dt)
-        expect(id).toBe("2025-11-06T14-30-00Z")
-      })
-    )
+    it("should generate filesystem-safe ID", () => {
+      const dt = DateTime.unsafeMake(new Date("2025-11-08T14:30:00.000Z").getTime())
+      const id = generateCheckpointId(dt)
+      expect(id).toBe("2025-11-08T14-30-00Z")
+    })
   })
 
   describe("detectThreadId", () => {
-    it.effect("should detect AMP_THREAD_ID from environment", () =>
-      Effect.gen(function* () {
-        process.env.AMP_THREAD_ID = "T-test-123"
-        const threadId = detectThreadId()
-        expect(threadId).toBe("T-test-123")
-        delete process.env.AMP_THREAD_ID
-      })
-    )
+    it("should detect AMP_CURRENT_THREAD_ID from environment", () => {
+      const saved = process.env.AMP_CURRENT_THREAD_ID
+      process.env.AMP_CURRENT_THREAD_ID = "T-test-123"
+      const threadId = detectThreadId()
+      expect(threadId).toBe("T-test-123")
+      if (saved) process.env.AMP_CURRENT_THREAD_ID = saved
+      else delete process.env.AMP_CURRENT_THREAD_ID
+    })
 
-    it.effect("should return undefined when not set", () =>
-      Effect.gen(function* () {
-        delete process.env.AMP_THREAD_ID
-        const threadId = detectThreadId()
-        expect(threadId).toBeUndefined()
-      })
-    )
+    it("should return undefined when not set", () => {
+      const saved = process.env.AMP_CURRENT_THREAD_ID
+      delete process.env.AMP_CURRENT_THREAD_ID
+      const threadId = detectThreadId()
+      expect(threadId).toBeUndefined()
+      if (saved) process.env.AMP_CURRENT_THREAD_ID = saved
+    })
   })
 
   describe("computeDelta", () => {
-    it.effect("should compute positive delta when findings increase", () =>
-      Effect.gen(function* () {
-        const previous = { errors: 10, warnings: 20, totalFiles: 5, totalFindings: 30 }
-        const current = { errors: 15, warnings: 25, totalFiles: 5, totalFindings: 40 }
+    it("should compute positive delta when findings increase", () => {
+      const previous = { errors: 10, warnings: 20, info: 5, totalFiles: 5, totalFindings: 35 }
+      const current = { errors: 15, warnings: 25, info: 8, totalFiles: 5, totalFindings: 48 }
 
-        const delta = computeDelta(previous, current)
+      const delta = computeDelta(previous, current)
 
-        expect(delta.errors).toBe(5)
-        expect(delta.warnings).toBe(5)
-        expect(delta.totalFindings).toBe(10)
-      })
-    )
+      expect(delta.errors).toBe(5)
+      expect(delta.warnings).toBe(5)
+      expect(delta.info).toBe(3)
+      expect(delta.totalFindings).toBe(13)
+    })
 
-    it.effect("should compute negative delta when findings decrease", () =>
-      Effect.gen(function* () {
-        const previous = { errors: 15, warnings: 25, totalFiles: 5, totalFindings: 40 }
-        const current = { errors: 10, warnings: 20, totalFiles: 5, totalFindings: 30 }
+    it("should compute negative delta when findings decrease", () => {
+      const previous = { errors: 15, warnings: 25, info: 8, totalFiles: 5, totalFindings: 48 }
+      const current = { errors: 10, warnings: 20, info: 5, totalFiles: 5, totalFindings: 35 }
 
-        const delta = computeDelta(previous, current)
+      const delta = computeDelta(previous, current)
 
-        expect(delta.errors).toBe(-5)
-        expect(delta.warnings).toBe(-5)
-        expect(delta.totalFindings).toBe(-10)
-      })
-    )
+      expect(delta.errors).toBe(-5)
+      expect(delta.warnings).toBe(-5)
+      expect(delta.info).toBe(-3)
+      expect(delta.totalFindings).toBe(-13)
+    })
   })
-
-  // Integration tests for createCheckpoint, listCheckpoints, etc.
-  // Use temporary directory for file system operations
-})
-```
-
-### Integration Tests
-
-**File: packages/cli/src/__tests__/checkpoints-command.test.ts**
-
-```typescript
-import { describe, it, expect } from "@effect/vitest"
-import { Effect } from "effect"
-import { checkpointsCommand } from "../commands/checkpoints.js"
-import { createCheckpoint } from "../amp/checkpoint-manager.js"
-
-describe("Checkpoints Command", () => {
-  it.effect("should list checkpoints", () =>
-    Effect.gen(function* () {
-      // Setup: Create test checkpoints
-      // Execute: Run list command
-      // Assert: Verify output contains checkpoints
-    })
-  )
-
-  it.effect("should show latest checkpoint", () =>
-    Effect.gen(function* () {
-      // Setup: Create checkpoint
-      // Execute: Run latest command
-      // Assert: Verify latest is shown
-    })
-  )
-
-  it.effect("should diff two checkpoints", () =>
-    Effect.gen(function* () {
-      // Setup: Create two checkpoints with different findings
-      // Execute: Run diff command
-      // Assert: Verify delta is correct
-    })
-  )
 })
 ```
 
 ### Manual Testing
 
-**Multi-session workflow:**
-
 ```bash
 # Session 1 (in Amp thread T-abc123)
-export AMP_THREAD_ID=T-abc123
-pnpm effect-migrate audit --amp-out .amp/effect-migrate
+export AMP_CURRENT_THREAD_ID=T-abc123-uuid
+pnpm cli audit --amp-out .amp/effect-migrate
 
 # Verify checkpoint created
 cat .amp/effect-migrate/index.json | jq '.latestCheckpoint'
 cat .amp/effect-migrate/checkpoints/manifest.json | jq '.checkpoints[0]'
 
-# Make some fixes to code (reduce errors)
+# Make some fixes to code
 
 # Session 2 (in Amp thread T-def456)
-export AMP_THREAD_ID=T-def456
-pnpm effect-migrate audit --amp-out .amp/effect-migrate
+export AMP_CURRENT_THREAD_ID=T-def456-uuid
+pnpm cli audit --amp-out .amp/effect-migrate
 
 # Verify delta calculated
-pnpm effect-migrate checkpoints list
+pnpm cli checkpoints list
 # Should show 2 checkpoints with delta
 
 # Compare checkpoints
-pnpm effect-migrate checkpoints diff <first-id> <second-id>
+pnpm cli checkpoints diff <first-id> <second-id>
 # Should show improvement
 ```
 
@@ -1151,14 +914,14 @@ pnpm effect-migrate checkpoints diff <first-id> <second-id>
 - [ ] `manifest.json` tracks all checkpoints with metadata
 - [ ] `audit.json` points to latest checkpoint (symlink on Unix, copy on Windows)
 - [ ] `index.json` includes `latestCheckpoint` and recent history (last 10)
-- [ ] `AMP_THREAD_ID` auto-detected and linked to checkpoint
+- [ ] `AMP_CURRENT_THREAD_ID` auto-detected and linked to checkpoint
 - [ ] Delta computed between consecutive checkpoints
 - [ ] CLI commands work: `list`, `latest`, `show`, `diff`
 
 ### Performance Requirements
 
 - [ ] Checkpoint creation adds <100ms to audit runtime (10k findings)
-- [ ] Checkpoint files use normalized schema (50-70% size reduction vs. old format)
+- [ ] Checkpoint files use FindingsGroup schema (40-70% size reduction)
 - [ ] Manifest reads <50ms for 100 checkpoints
 
 ### Developer Experience
@@ -1181,34 +944,35 @@ pnpm effect-migrate checkpoints diff <first-id> <second-id>
 
 **New files:**
 
-- `packages/cli/src/amp/checkpoint-manager.ts` (~500 LOC)
-- `packages/cli/src/commands/checkpoints.ts` (~200 LOC)
-- `packages/cli/src/__tests__/checkpoint-manager.test.ts` (~150 LOC)
-- `packages/cli/src/__tests__/checkpoints-command.test.ts` (~100 LOC)
+- `packages/core/src/amp/checkpoint-manager.ts` (~400 LOC)
+- `packages/cli/src/commands/checkpoints.ts` (~320 LOC)
+- `packages/core/test/amp/checkpoint-manager.test.ts` (~100 LOC)
+- `packages/cli/test/commands/checkpoints.test.ts` (~150 LOC)
 
 **Modified files:**
 
-- `packages/cli/src/commands/audit.ts` (integrate checkpoint creation)
-- `packages/cli/src/amp/index-writer.ts` (add checkpoint history)
-- `packages/cli/src/index.ts` (register checkpoints subcommand)
+- `packages/core/src/schema/amp.ts` (add checkpoint schemas ~100 LOC)
+- `packages/core/src/amp/context-writer.ts` (integrate checkpoints ~30 LOC)
+- `packages/core/src/index.ts` (export checkpoint functions ~10 LOC)
+- `packages/cli/src/index.ts` (register checkpoints command ~2 LOC)
 
 **Total effort:** 4-6 hours coding + 1-2 hours testing
 
 ---
 
-## Future Enhancements (Not in This PR)
+## Key Differences from Original Plan
 
-- Checkpoint retention policy (max count, max age)
-- Checkpoint annotations and tagging
-- Progress charts (ASCII art in CLI)
-- SQLite backend for large projects (Phase 2 of comprehensive plan)
-- Analytics engine with nodejs-polars (Phase 3)
-- OpenTelemetry monitoring (Phase 4)
-- MCP server integration (Phase 5)
+1. ✅ **Environment variable**: `AMP_CURRENT_THREAD_ID` (not `AMP_THREAD_ID`)
+2. ✅ **Schema type**: `FindingsGroup` (not `NormalizedFindings`)
+3. ✅ **Versioning**: Single `SCHEMA_VERSION` constant (not `SCHEMA_VERSIONS` object)
+4. ✅ **Summary includes `info`**: `FindingsSummary` has errors, warnings, info, totalFiles, totalFindings
+5. ✅ **Thread auto-detection**: Already implemented in context-writer.ts
+6. ✅ **Revision tracking**: Already incremented in context-writer.ts
+7. ✅ **Schema exports**: Use existing schema classes from amp.ts
 
 ---
 
-**Last Updated:** 2025-11-06  
+**Last Updated:** 2025-11-08  
 **Maintainer:** @aridyckovsky  
-**Status:** Ready for implementation  
+**Status:** Ready for implementation (revised based on PR1/PR2 actuals)  
 **Thread:** https://ampcode.com/threads/T-5bd34c50-9752-4d71-8768-e8290de2c380

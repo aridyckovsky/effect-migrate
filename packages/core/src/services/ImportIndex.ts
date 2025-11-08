@@ -158,7 +158,11 @@ export const ImportIndexLive = Layer.effect(
         const tryResolve = (candidate: string): Effect.Effect<Option.Option<string>> =>
           fs.exists(candidate).pipe(
             Effect.map(exists => (exists ? Option.some(candidate) : Option.none())),
-            Effect.catchAll(() => Effect.succeed(Option.none()))
+            Effect.catchAll(error =>
+              Effect.logDebug(`Could not check file existence for ${candidate}: ${error}`).pipe(
+                Effect.as(Option.none())
+              )
+            )
           )
 
         const candidates = [

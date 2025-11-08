@@ -31,7 +31,7 @@ import chalk from "chalk"
  * @example
  * ```typescript
  * const output = formatConsoleOutput(results, config)
- * console.log(output)
+ * Console.log(output)
  * // Displays:
  * // ════════════════════════════════════════════════════════════
  * //   AUDIT RESULTS

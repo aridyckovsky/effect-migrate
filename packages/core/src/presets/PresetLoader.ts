@@ -22,7 +22,7 @@
  *   const loader = yield* PresetLoader
  *   const result = yield* loader.loadPresets(["@effect-migrate/preset-basic"])
  *
- *   console.log(`Loaded ${result.rules.length} rules`)
+ *   yield* Console.log(`Loaded ${result.rules.length} rules`)
  *   // defaults contains merged config from all presets
  * }).pipe(Effect.provide(PresetLoaderNpmLive))
  * ```
@@ -119,7 +119,7 @@ export class PresetLoader extends Context.Tag("PresetLoader")<
  *   const loader = yield* PresetLoader
  *   const preset = yield* loader.loadPreset("@effect-migrate/preset-basic")
  *
- *   console.log(`Loaded ${preset.rules.length} rules`)
+ *   yield* Console.log(`Loaded ${preset.rules.length} rules`)
  * }).pipe(Effect.provide(PresetLoaderNpmLive))
  * ```
  */

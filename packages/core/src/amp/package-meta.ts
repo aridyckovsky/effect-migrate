@@ -10,6 +10,7 @@
 
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
+import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -63,7 +64,11 @@ export const getPackageMeta = Effect.gen(function*() {
   // Resolve path to package.json relative to this file
   // In production (build): build/esm/amp/package-meta.js -> ../../../package.json
   // In test (tsx): src/amp/package-meta.ts (via tsx) -> ../../package.json
-  const filePath = yield* path.fromFileUrl(new URL(import.meta.url))
+  const fileUrl = yield* Effect.try({
+    try: () => new URL(import.meta.url),
+    catch: e => `Invalid import.meta.url: ${String(e)}`
+  })
+  const filePath = yield* path.fromFileUrl(fileUrl)
   const dirname = path.dirname(filePath)
 
   // Try production path first (3 levels up)
@@ -76,12 +81,12 @@ export const getPackageMeta = Effect.gen(function*() {
   }
 
   const content = yield* fs.readFileString(packageJsonPath).pipe(
-    Effect.catchAll(() => Effect.fail(new Error("package.json not found")))
+    Effect.catchAll(() => Effect.fail("package.json not found"))
   )
 
   const pkg = yield* Effect.try({
     try: () => JSON.parse(content) as unknown,
-    catch: e => new Error(`Invalid JSON in ${packageJsonPath}: ${String(e)}`)
+    catch: e => `Invalid JSON in ${packageJsonPath}: ${String(e)}`
   }).pipe(Effect.flatMap(Schema.decodeUnknown(PackageJson)))
 
   return {
@@ -89,5 +94,9 @@ export const getPackageMeta = Effect.gen(function*() {
     schemaVersion: pkg.effectMigrate?.schemaVersion ?? "1.0.0"
   }
 }).pipe(
-  Effect.catchAll(() => Effect.succeed({ toolVersion: "unknown", schemaVersion: "1.0.0" }))
+  Effect.catchAll(error =>
+    Console.warn(`Failed to read package.json, using defaults: ${error}`).pipe(
+      Effect.as({ toolVersion: "unknown", schemaVersion: "1.0.0" })
+    )
+  )
 )

@@ -9,23 +9,24 @@
  */
 
 import type * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import type { Location, Range, Severity } from "../types.js"
 
 /**
- * All valid rule kinds.
+ * Rule kind schema.
  *
  * @category Rule System
  * @since 0.1.0
  */
-export const RULE_KINDS = ["pattern", "boundary", "docs", "metrics"] as const
+export const RuleKindSchema = Schema.Literal("pattern", "boundary", "docs", "metrics")
 
 /**
- * Rule kind type derived from RULE_KINDS constant.
+ * Rule kind type derived from schema.
  *
  * @category Rule System
  * @since 0.1.0
  */
-export type RuleKind = typeof RULE_KINDS[number]
+export type RuleKind = Schema.Schema.Type<typeof RuleKindSchema>
 
 /**
  * Execution context provided to rules during run.

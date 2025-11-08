@@ -1,31 +1,38 @@
+import { Time } from "@effect-migrate/core"
 import { addThread, readThreads, validateThreadUrl } from "@effect-migrate/core/amp"
 import type { ThreadsFile } from "@effect-migrate/core/amp"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, layer } from "@effect/vitest"
 import * as Clock from "effect/Clock"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
+import * as Layer from "effect/Layer"
+import * as TestClock from "effect/TestClock"
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+/**
+ * Test layer composition.
+ *
+ * Time.Default requires Clock. In tests, TestClock is provided by layer(),
+ * so we merge it with provideMerge to satisfy the dependency.
+ */
+const TestLayer = NodeContext.layer.pipe(
+  Layer.provideMerge(Time.Default),
+  Layer.provideMerge(Layer.succeed(Clock.Clock, Clock.make()))
+)
 
 // Test thread ID/URL constants for DRY
 const TEST_THREAD_1_ID = "t-12345678-1234-1234-1234-123456789abc"
 const TEST_THREAD_1_URL = "https://ampcode.com/threads/T-12345678-1234-1234-1234-123456789abc"
 
-describe("Thread Command Integration Tests", () => {
-  const testDir = join(__dirname, "..", "..", "test-output")
-
+layer(TestLayer)("Thread Command Integration Tests", it => {
   describe("thread add command", () => {
     it.effect("successfully adds thread with valid URL", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "add-valid")
+        const outputDir = path.join("test-output", "thread-add-valid")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -47,7 +54,7 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("fails with invalid URL", () =>
       Effect.gen(function*() {
@@ -69,7 +76,7 @@ describe("Thread Command Integration Tests", () => {
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "add-tags")
+        const outputDir = path.join("test-output", "thread-add-tags")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -92,13 +99,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("parses scope correctly (comma-separated)", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "add-scope")
+        const outputDir = path.join("test-output", "thread-add-scope")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -121,13 +128,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("merges tags and scope on duplicate URL", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "add-merge")
+        const outputDir = path.join("test-output", "thread-add-merge")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -164,13 +171,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("writes to correct output directory", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const customDir = path.join(testDir, "custom-output", "nested", "deep")
+        const customDir = path.join("test-output", "thread-custom-output", "nested", "deep")
 
         // Clean up first
         const exists = yield* fs.exists(customDir)
@@ -188,8 +195,8 @@ describe("Thread Command Integration Tests", () => {
         expect(fileExists).toBe(true)
 
         // Cleanup
-        yield* fs.remove(path.join(testDir, "custom-output"), { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+        yield* fs.remove(path.join("test-output", "thread-custom-output"), { recursive: true })
+      }))
   })
 
   describe("thread list command", () => {
@@ -197,7 +204,7 @@ describe("Thread Command Integration Tests", () => {
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "list-empty")
+        const outputDir = path.join("test-output", "thread-list-empty")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -210,13 +217,13 @@ describe("Thread Command Integration Tests", () => {
 
         expect(threads.schemaVersion).toBe("0.2.0")
         expect(threads.threads).toEqual([])
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
-    it.live("shows threads in correct format", () =>
+    it.effect("shows threads in correct format", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "list-format")
+        const outputDir = path.join("test-output", "thread-list-format")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -235,8 +242,8 @@ describe("Thread Command Integration Tests", () => {
           description: "First thread"
         })
 
-        // Small delay to ensure different timestamps
-        yield* Clock.sleep("10 millis")
+        // Advance time to ensure different timestamps
+        yield* TestClock.adjust("10 millis")
 
         yield* addThread(outputDir, {
           url: url2,
@@ -263,13 +270,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("outputs valid JSON with correct schema", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "list-json")
+        const outputDir = path.join("test-output", "thread-list-json")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -298,7 +305,7 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
   })
 
   describe("audit integration", () => {
@@ -306,7 +313,7 @@ describe("Thread Command Integration Tests", () => {
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "audit-integration")
+        const outputDir = path.join("test-output", "thread-audit-integration")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -357,25 +364,25 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("threads array is empty when no threads exist", () =>
       Effect.gen(function*() {
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "audit-empty")
+        const outputDir = path.join("test-output", "thread-audit-empty")
 
         // Read from non-existent directory
         const threads = yield* readThreads(outputDir)
 
         expect(threads.schemaVersion).toBe("0.2.0")
         expect(threads.threads).toEqual([])
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("handles malformed threads.json gracefully", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "audit-malformed")
+        const outputDir = path.join("test-output", "thread-audit-malformed")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -395,7 +402,7 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
   })
 
   describe("URL validation", () => {
@@ -414,7 +421,7 @@ describe("Thread Command Integration Tests", () => {
             /^t-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
           )
         }
-      }))
+      }).pipe(Effect.provide(TestLayer)))
 
     it.effect("rejects invalid thread URLs", () =>
       Effect.gen(function*() {
@@ -432,15 +439,15 @@ describe("Thread Command Integration Tests", () => {
           const result = yield* Effect.exit(validateThreadUrl(url))
           expect(result._tag).toBe("Failure")
         }
-      }))
+      }).pipe(Effect.provide(TestLayer)))
   })
 
   describe("performance tests", () => {
-    it.live("handles large thread counts (1000 threads)", () =>
+    it.effect("handles large thread counts (1000 threads)", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "perf-large-count")
+        const outputDir = path.join("test-output", "thread-perf-large-count")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -485,13 +492,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("handles large tag and scope arrays", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "perf-large-arrays")
+        const outputDir = path.join("test-output", "thread-perf-large-arrays")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -538,13 +545,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
-    it.live("handles concurrent adds of same thread", () =>
+    it.effect("handles concurrent adds of same thread", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "perf-concurrent")
+        const outputDir = path.join("test-output", "thread-perf-concurrent")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -591,7 +598,7 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
   })
 
   describe("edge cases", () => {
@@ -599,7 +606,7 @@ describe("Thread Command Integration Tests", () => {
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "edge-empty-strings")
+        const outputDir = path.join("test-output", "thread-edge-empty-strings")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -622,13 +629,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
     it.effect("deduplicates tags and scope", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "edge-duplicates")
+        const outputDir = path.join("test-output", "thread-edge-duplicates")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -651,13 +658,13 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
 
-    it.live("preserves original createdAt on merge", () =>
+    it.effect("preserves original createdAt on merge", () =>
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const outputDir = path.join(testDir, "edge-preserve-timestamp")
+        const outputDir = path.join("test-output", "thread-edge-preserve-timestamp")
 
         // Clean up first
         const exists = yield* fs.exists(outputDir)
@@ -671,8 +678,8 @@ describe("Thread Command Integration Tests", () => {
         const result1 = yield* addThread(outputDir, { url })
         const originalTimestamp = result1.current.createdAt
 
-        // Wait a bit
-        yield* Clock.sleep("50 millis")
+        // Advance time
+        yield* TestClock.adjust("50 millis")
 
         // Add again
         const result2 = yield* addThread(outputDir, {
@@ -685,6 +692,6 @@ describe("Thread Command Integration Tests", () => {
 
         // Cleanup
         yield* fs.remove(outputDir, { recursive: true })
-      }).pipe(Effect.provide(NodeContext.layer)))
+      }))
   })
 })

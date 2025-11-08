@@ -1,7 +1,6 @@
-import { SystemError } from "@effect/platform/Error"
 import * as FileSystem from "@effect/platform/FileSystem"
-import * as Path from "@effect/platform/Path"
 import { describe, expect, it } from "@effect/vitest"
+import * as Clock from "effect/Clock"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -12,6 +11,8 @@ import {
   validateThreadUrl,
   writeThreads
 } from "../../src/amp/thread-manager.js"
+import { Time } from "../../src/services/Time.js"
+import { makeMockFileSystem, MockPathLayer } from "../helpers/mock-filesystem.js"
 
 // Test thread ID/URL constants for DRY
 const TEST_THREAD_1_ID = "t-12345678-abcd-1234-abcd-123456789abc"
@@ -19,114 +20,17 @@ const TEST_THREAD_1_URL = "https://ampcode.com/threads/T-12345678-abcd-1234-abcd
 const TEST_THREAD_2_ID = "t-11111111-1111-1111-1111-111111111111"
 const TEST_THREAD_2_URL = "https://ampcode.com/threads/T-11111111-1111-1111-1111-111111111111"
 
-// Mock filesystem with in-memory storage
-interface MockFileSystemState {
-  files: Map<string, string>
-}
-
-const makeMockFileSystem = () => {
-  const state: MockFileSystemState = { files: new Map() }
-
-  const mockFs = FileSystem.FileSystem.of({
-    access: () => Effect.void,
-    chmod: () => Effect.void,
-    chown: () => Effect.void,
-    copy: () => Effect.void,
-    copyFile: () => Effect.void,
-    exists: path => Effect.succeed(state.files.has(path)),
-    link: () => Effect.void,
-    makeDirectory: () => Effect.void,
-    makeTempDirectory: () => Effect.succeed("/tmp/mock"),
-    makeTempDirectoryScoped: () => Effect.succeed("/tmp/mock"),
-    makeTempFile: () => Effect.succeed("/tmp/mock-file"),
-    makeTempFileScoped: () => Effect.succeed("/tmp/mock-file"),
-    open: () => Effect.die("Not implemented"),
-    readDirectory: () => Effect.succeed([]),
-    readFile: path =>
-      Effect.gen(function*() {
-        const content = state.files.get(path)
-        if (!content) {
-          return yield* Effect.fail(
-            new SystemError({
-              reason: "NotFound",
-              module: "FileSystem",
-              method: "readFile",
-              description: `File not found: ${path}`
-            })
-          )
-        }
-        return new TextEncoder().encode(content)
-      }),
-    readFileString: path =>
-      Effect.gen(function*() {
-        const content = state.files.get(path)
-        if (!content) {
-          return yield* Effect.fail(
-            new SystemError({
-              reason: "NotFound",
-              module: "FileSystem",
-              method: "readFileString",
-              description: `File not found: ${path}`
-            })
-          )
-        }
-        return content
-      }),
-    readLink: () => Effect.succeed(""),
-    realPath: path => Effect.succeed(path),
-    remove: () => Effect.void,
-    rename: () => Effect.void,
-    sink: () => Effect.die("Not implemented"),
-    stat: () => Effect.die("Not implemented"),
-    stream: () => Effect.die("Not implemented"),
-    symlink: () => Effect.void,
-    truncate: () => Effect.void,
-    utimes: () => Effect.void,
-    watch: () => Effect.die("Not implemented"),
-    writeFile: (path, data) =>
-      Effect.sync(() => {
-        state.files.set(path, new TextDecoder().decode(data as Uint8Array))
-      }),
-    writeFileString: (path, content) =>
-      Effect.sync(() => {
-        state.files.set(path, content)
-      })
-  })
-
-  // Return both the filesystem and state as a tuple for external access
-  return { mockFs, state }
-}
-
-const MockPathLayer = Layer.succeed(
-  Path.Path,
-  Path.Path.of({
-    [Path.TypeId]: Path.TypeId,
-    sep: "/",
-    basename: path => path.split("/").pop() ?? "",
-    dirname: path => path.split("/").slice(0, -1).join("/") || "/",
-    extname: path => {
-      const base = path.split("/").pop() ?? ""
-      const idx = base.lastIndexOf(".")
-      return idx > 0 ? base.slice(idx) : ""
-    },
-    format: () => "",
-    fromFileUrl: url => Effect.succeed(url instanceof URL ? url.pathname : new URL(url).pathname),
-    isAbsolute: path => path.startsWith("/"),
-    join: (...parts) => parts.join("/"),
-    normalize: path => path,
-    parse: () => ({ root: "", dir: "", base: "", ext: "", name: "" }),
-    relative: (from, to) => to.replace(from, "").replace(/^\//, ""),
-    resolve: (...paths) => "/" + paths.filter(Boolean).join("/").replace(/\/+/g, "/"),
-    toFileUrl: path => Effect.succeed(new URL(`file://${path}`)),
-    toNamespacedPath: path => path
-  })
-)
-
-// Helper to create test context with fresh mock filesystem
-const makeTestContext = () => {
-  const { mockFs } = makeMockFileSystem()
-  return Layer.merge(Layer.succeed(FileSystem.FileSystem, mockFs), MockPathLayer)
-}
+/**
+ * Helper to create test context with Time.Default layer.
+ *
+ * Combines FileSystem, Path, and Time layers for thread-manager tests.
+ */
+const makeThreadTestContext = (mockFs: FileSystem.FileSystem) =>
+  Layer.mergeAll(
+    Layer.succeed(FileSystem.FileSystem, mockFs),
+    MockPathLayer,
+    Time.Default
+  ).pipe(Layer.provideMerge(Layer.succeed(Clock.Clock, Clock.make())))
 
 describe("thread-manager", () => {
   describe("validateThreadUrl", () => {
@@ -195,12 +99,15 @@ describe("thread-manager", () => {
   describe("readThreads", () => {
     it.effect("returns empty ThreadsFile when file doesn't exist", () =>
       Effect.gen(function*() {
-        const result = yield* readThreads("/test-dir")
+        const { mockFs } = makeMockFileSystem()
+        const result = yield* readThreads("/test-dir").pipe(
+          Effect.provide(makeThreadTestContext(mockFs))
+        )
 
         expect(result.schemaVersion).toBe("0.2.0")
         expect(result.threads).toEqual([])
         expect(result.toolVersion).toBeDefined()
-      }).pipe(Effect.provide(makeTestContext())))
+      }))
 
     it.effect("handles malformed JSON gracefully", () =>
       Effect.gen(function*() {
@@ -209,10 +116,11 @@ describe("thread-manager", () => {
 
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
-            Layer.merge(
+            Layer.mergeAll(
               Layer.succeed(FileSystem.FileSystem, mockFs),
-              MockPathLayer
-            )
+              MockPathLayer,
+              Time.Default
+            ).pipe(Layer.provideMerge(Layer.succeed(Clock.Clock, Clock.make())))
           )
         )
 
@@ -240,10 +148,7 @@ describe("thread-manager", () => {
 
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
-            Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs),
-              MockPathLayer
-            )
+            makeThreadTestContext(mockFs)
           )
         )
 
@@ -276,10 +181,7 @@ describe("thread-manager", () => {
 
         const result = yield* readThreads("/test-dir").pipe(
           Effect.provide(
-            Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs),
-              MockPathLayer
-            )
+            makeThreadTestContext(mockFs)
           )
         )
 
@@ -296,17 +198,12 @@ describe("thread-manager", () => {
       Effect.gen(function*() {
         const { mockFs, state } = makeMockFileSystem()
 
-        const baseContext = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
-
         const result = yield* addThread("/test-dir", {
           url: "https://ampcode.com/threads/T-12345678-abcd-1234-abcd-123456789abc",
           tags: ["migration", "api"],
           scope: ["src/api/*"],
           description: "API migration thread"
-        }).pipe(Effect.provide(baseContext))
+        }).pipe(Effect.provide(makeThreadTestContext(mockFs)))
 
         expect(result.added).toBe(true)
         expect(result.merged).toBe(false)
@@ -348,14 +245,7 @@ describe("thread-manager", () => {
         const result = yield* addThread("/test-dir", {
           url: "https://ampcode.com/threads/T-12345678-abcd-1234-abcd-123456789abc",
           tags: ["api", "refactor", "core"] // "api" is duplicate
-        }).pipe(
-          Effect.provide(
-            Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs),
-              MockPathLayer
-            )
-          )
-        )
+        }).pipe(Effect.provide(makeThreadTestContext(mockFs)))
 
         expect(result.added).toBe(false)
         expect(result.merged).toBe(true)
@@ -390,10 +280,7 @@ describe("thread-manager", () => {
           scope: ["src/api/*", "src/core/*"] // "src/api/*" is duplicate
         }).pipe(
           Effect.provide(
-            Layer.merge(
-              Layer.succeed(FileSystem.FileSystem, mockFs),
-              MockPathLayer
-            )
+            makeThreadTestContext(mockFs)
           )
         )
 
@@ -423,10 +310,7 @@ describe("thread-manager", () => {
 
         state.files.set("/test-dir/threads.json", JSON.stringify(initialThreads))
 
-        const baseContext = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
+        const baseContext = makeThreadTestContext(mockFs)
 
         // Add same thread
         const result = yield* addThread("/test-dir", {
@@ -443,10 +327,7 @@ describe("thread-manager", () => {
       Effect.gen(function*() {
         const { mockFs } = makeMockFileSystem()
 
-        const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
+        const context = makeThreadTestContext(mockFs)
 
         // Add first thread
         yield* addThread("/test-dir", {
@@ -501,10 +382,7 @@ describe("thread-manager", () => {
           ]
         }
 
-        const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
+        const context = makeThreadTestContext(mockFs)
 
         // Write
         yield* writeThreads("/test-dir", threadsToWrite).pipe(Effect.provide(context))
@@ -541,10 +419,7 @@ describe("thread-manager", () => {
 
         state.files.set("/test-dir/threads.json", JSON.stringify(noVersionFormat))
 
-        const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
+        const context = makeThreadTestContext(mockFs)
 
         const result = yield* readThreads("/test-dir").pipe(Effect.provide(context))
 
@@ -556,10 +431,7 @@ describe("thread-manager", () => {
     it.effect("adds thread with specified audit revision", () =>
       Effect.gen(function*() {
         const { mockFs } = makeMockFileSystem()
-        const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
+        const context = makeThreadTestContext(mockFs)
 
         // Add a thread with audit revision 5
         yield* addThread(
@@ -605,10 +477,7 @@ describe("thread-manager", () => {
 
         state.files.set("/test-dir/threads.json", JSON.stringify(formatWithExtras))
 
-        const context = Layer.merge(
-          Layer.succeed(FileSystem.FileSystem, mockFs),
-          MockPathLayer
-        )
+        const context = makeThreadTestContext(mockFs)
 
         const result = yield* readThreads("/test-dir").pipe(Effect.provide(context))
 

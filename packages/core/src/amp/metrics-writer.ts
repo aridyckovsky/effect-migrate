@@ -11,13 +11,12 @@
 import type { Config, RuleResult } from "@effect-migrate/core"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
-import * as Clock from "effect/Clock"
 import * as Console from "effect/Console"
-import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as AmpSchema from "../schema/amp.js"
 import { SCHEMA_VERSION } from "../schema/versions.js"
+import * as Time from "../services/Time.js"
 import { getPackageMeta } from "./package-meta.js"
 
 // Local type alias for internal use
@@ -59,7 +58,7 @@ export const writeMetricsContext = (
   results: RuleResult[],
   config: Config,
   revision: number
-) =>
+): Effect.Effect<void, Error, FileSystem.FileSystem | Path.Path | Time.Time> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
@@ -67,8 +66,8 @@ export const writeMetricsContext = (
     // Ensure output directory exists
     yield* fs.makeDirectory(outputDir, { recursive: true }).pipe(Effect.catchAll(() => Effect.void))
 
-    const now = yield* Clock.currentTimeMillis
-    const timestamp = DateTime.unsafeMake(now)
+    const timestamp = yield* Time.nowUtc
+    // TODO: Use project root from config and not hard-code this
     const projectRoot = process.cwd()
 
     // Get dynamic metadata from package.json
