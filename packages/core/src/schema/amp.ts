@@ -57,10 +57,12 @@ export const RuleResultSchema = Schema.Struct({
  * and which files/rules were addressed. Used to build an audit trail of migration
  * work across multiple coding sessions.
  *
+ * Thread references are populated via:
+ * - Manual `effect-migrate thread add` command for explicit linking
+ * - Auto-detection using AMP_CURRENT_THREAD_ID environment variable during audit
+ *
  * @category Schema
  * @since 0.1.0
- * TODO: Is this still planned or have we completed?
- * @planned Will be populated by `effect-migrate thread add` command
  */
 export const ThreadReference = Schema.Struct({
   /** Thread URL in format: https://ampcode.com/threads/T-{uuid} */
@@ -69,6 +71,11 @@ export const ThreadReference = Schema.Struct({
   ),
   /** ISO timestamp when thread was created or linked */
   timestamp: Schema.DateTimeUtc,
+  /** Audit revision associated with this thread */
+  auditRevision: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(1)
+  ),
   /** User-provided description of work done in this thread */
   description: Schema.optional(Schema.String),
   /** Files modified in this thread */
@@ -366,6 +373,10 @@ export const ThreadEntry = Schema.Struct({
     )
   ),
   createdAt: Schema.DateTimeUtc,
+  auditRevision: Schema.optional(Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(1)
+  )).pipe(Schema.withDefaults({ constructor: () => 1, decoding: () => 1 })),
   tags: Schema.optional(Schema.Array(Schema.String)),
   scope: Schema.optional(Schema.Array(Schema.String)),
   description: Schema.optional(Schema.String)
@@ -374,18 +385,15 @@ export const ThreadEntry = Schema.Struct({
 /**
  * Threads file schema for threads.json.
  *
- * Root structure containing version and array of thread entries.
+ * Root structure containing schema version, tool version, and array of thread entries.
  * Threads are sorted by createdAt descending (newest first).
- *
- * **Note:** The `version` field tracks the audit version these threads
- * are associated with, NOT a schema version for threads.json itself.
- * This version should match the audit.json version from context-writer.
  *
  * @category Schema
  * @since 0.2.0
  */
 export const ThreadsFile = Schema.Struct({
-  version: Schema.Number,
+  schemaVersion: Semver,
+  toolVersion: Schema.String,
   threads: Schema.Array(ThreadEntry)
 })
 
@@ -404,6 +412,8 @@ export const MetricsSummary = Schema.Struct({
   errors: Schema.Number,
   /** Warning-level violations */
   warnings: Schema.Number,
+  /** Info-level violations */
+  info: Schema.Number,
   /** Number of files with violations */
   filesAffected: Schema.Number,
   /** Migration completion percentage (0-100) */
@@ -438,8 +448,13 @@ export const RuleMetrics = Schema.Struct({
  * @since 0.2.0
  */
 export const AmpMetricsContext = Schema.Struct({
-  /** Context version */
-  version: Schema.Number,
+  /** Schema version */
+  schemaVersion: Semver,
+  /** Audit revision number (links metrics to audit.json) */
+  revision: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(1)
+  ),
   /** Tool version */
   toolVersion: Schema.String,
   /** Project root path */
