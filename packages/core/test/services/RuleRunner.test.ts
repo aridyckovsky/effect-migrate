@@ -1,40 +1,34 @@
+/**
+ * Tests for RuleRunner service
+ *
+ * Verifies rule execution, concurrency handling, and context provision.
+ */
+
 import * as NodeContext from "@effect/platform-node/NodeContext"
-import * as Path from "@effect/platform/Path"
 import { expect, layer } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { makeBoundaryRule, makePatternRule } from "../../src/rules/helpers.js"
-import type { Config } from "../../src/schema/Config.js"
-import { PathsSchema } from "../../src/schema/Config.js"
 import { FileDiscoveryLive } from "../../src/services/FileDiscovery.js"
 import { ImportIndexLive } from "../../src/services/ImportIndex.js"
 import { RuleRunner, RuleRunnerLayer } from "../../src/services/RuleRunner.js"
+import { getFixturesDir, makeTestConfig } from "../helpers/index.js"
 
-// Get test directory using Web API
-const testDir = new URL(".", import.meta.url).pathname
+// Get fixtures directory path
+const fixturesDir = getFixturesDir(import.meta.url)
 
+// Compose test layer with all dependencies
 const TestLayer = RuleRunnerLayer.pipe(
   Layer.provide(ImportIndexLive),
   Layer.provide(FileDiscoveryLive),
-  Layer.provide(NodeContext.layer),
-  Layer.merge(NodeContext.layer)
+  Layer.provide(NodeContext.layer)
 )
 
 layer(TestLayer)("RuleRunner", it => {
   it.effect("should run pattern rules", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule = makePatternRule({
         id: "no-async-await",
@@ -44,7 +38,7 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const results = yield* runner.runRules([rule], baseConfig)
+      const results = yield* runner.runRules([rule], config)
 
       expect(results.length).toBeGreaterThan(0)
       expect(results[0].id).toBe("no-async-await")
@@ -55,18 +49,8 @@ layer(TestLayer)("RuleRunner", it => {
 
   it.effect("should run boundary rules", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule = makeBoundaryRule({
         id: "no-effect-in-services",
@@ -76,7 +60,7 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "error"
       })
 
-      const results = yield* runner.runRules([rule], baseConfig)
+      const results = yield* runner.runRules([rule], config)
 
       expect(Array.isArray(results)).toBe(true)
       if (results.length > 0) {
@@ -86,18 +70,8 @@ layer(TestLayer)("RuleRunner", it => {
 
   it.effect("should run multiple rules concurrently", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule1 = makePatternRule({
         id: "no-async-await",
@@ -115,7 +89,7 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const results = yield* runner.runRules([rule1, rule2], baseConfig)
+      const results = yield* runner.runRules([rule1, rule2], config)
 
       const rule1Results = results.filter(r => r.id === "no-async-await")
       const rule2Results = results.filter(r => r.id === "no-promise")
@@ -126,18 +100,8 @@ layer(TestLayer)("RuleRunner", it => {
 
   it.effect("should merge results from all rules", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule1 = makePatternRule({
         id: "rule-1",
@@ -155,7 +119,7 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const results = yield* runner.runRules([rule1, rule2], baseConfig)
+      const results = yield* runner.runRules([rule1, rule2], config)
 
       expect(results.some(r => r.id === "rule-1")).toBe(true)
       expect(results.some(r => r.id === "rule-2")).toBe(true)
@@ -163,18 +127,8 @@ layer(TestLayer)("RuleRunner", it => {
 
   it.effect("should respect config.concurrency", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir, { concurrency: 1 })
 
       const rule = makePatternRule({
         id: "test-concurrency",
@@ -184,30 +138,15 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const configWithConcurrency: Config = {
-        ...baseConfig,
-        concurrency: 1
-      }
-
-      const results = yield* runner.runRules([rule], configWithConcurrency)
+      const results = yield* runner.runRules([rule], config)
 
       expect(Array.isArray(results)).toBe(true)
     }))
 
   it.effect("should handle rules with no matches", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule = makePatternRule({
         id: "no-matches",
@@ -217,45 +156,25 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const results = yield* runner.runRules([rule], baseConfig)
+      const results = yield* runner.runRules([rule], config)
 
       expect(results).toEqual([])
     }))
 
   it.effect("should handle empty rule array", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
+      const config = makeTestConfig(fixturesDir)
 
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
-
-      const results = yield* runner.runRules([], baseConfig)
+      const results = yield* runner.runRules([], config)
 
       expect(results).toEqual([])
     }))
 
   it.effect("should cache import index across boundary rules", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule1 = makeBoundaryRule({
         id: "boundary-1",
@@ -273,15 +192,13 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const results = yield* runner.runRules([rule1, rule2], baseConfig)
+      const results = yield* runner.runRules([rule1, rule2], config)
 
       expect(Array.isArray(results)).toBe(true)
     }))
 
   it.effect("should respect paths.exclude from config", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
 
       const rule = makePatternRule({
@@ -292,13 +209,12 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const configWithExclude: Config = {
-        version: 1,
-        paths: new PathsSchema({
+      const configWithExclude = makeTestConfig(fixturesDir, {
+        paths: {
           root: fixturesDir,
           exclude: [`${fixturesDir}/src/services/**`]
-        })
-      }
+        }
+      })
 
       const results = yield* runner.runRules([rule], configWithExclude)
 
@@ -307,18 +223,8 @@ layer(TestLayer)("RuleRunner", it => {
 
   it.effect("should handle rule errors gracefully", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const failingRule = {
         id: "failing-rule",
@@ -334,25 +240,15 @@ layer(TestLayer)("RuleRunner", it => {
         severity: "warning"
       })
 
-      const results = yield* runner.runRules([failingRule, successRule], baseConfig)
+      const results = yield* runner.runRules([failingRule, successRule], config)
 
       expect(results.some(r => r.id === "success-rule")).toBe(true)
     }))
 
   it.effect("should provide correct context to rules", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       let capturedContext: any = null
 
@@ -366,7 +262,7 @@ layer(TestLayer)("RuleRunner", it => {
           })
       }
 
-      yield* runner.runRules([inspectRule], baseConfig)
+      yield* runner.runRules([inspectRule], config)
 
       expect(capturedContext).toBeDefined()
       expect(capturedContext.cwd).toBeDefined()
@@ -378,18 +274,8 @@ layer(TestLayer)("RuleRunner", it => {
 
   it.effect("should return results with all required fields", () =>
     Effect.gen(function*() {
-      const path = yield* Path.Path
-      const fixturesDir = path.join(testDir, "../fixtures/sample-project")
       const runner = yield* RuleRunner
-
-      const baseConfig: Config = {
-        version: 1,
-        paths: new PathsSchema({
-          root: fixturesDir,
-          exclude: ["**/node_modules/**", "**/dist/**"]
-        }),
-        concurrency: 2
-      }
+      const config = makeTestConfig(fixturesDir)
 
       const rule = makePatternRule({
         id: "full-result",
@@ -401,7 +287,7 @@ layer(TestLayer)("RuleRunner", it => {
         tags: ["migration", "imports"]
       })
 
-      const results = yield* runner.runRules([rule], baseConfig)
+      const results = yield* runner.runRules([rule], config)
 
       expect(results.length).toBeGreaterThan(0)
 
