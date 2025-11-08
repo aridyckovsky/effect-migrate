@@ -1,5 +1,12 @@
 # @effect-migrate/preset-basic
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`f22c2dd`](https://github.com/aridyckovsky/effect-migrate/commit/f22c2dd9e1872c4147cced57b22545bc8a48bc95), [`cbd8eb9`](https://github.com/aridyckovsky/effect-migrate/commit/cbd8eb9f44505ca2bfeff235cdd6cf5c90a9bc74)]:
+  - @effect-migrate/core@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
