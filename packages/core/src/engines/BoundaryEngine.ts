@@ -20,7 +20,7 @@ import type { ImportIndexResult, Rule, RuleContext, RuleResult } from "../rules/
 import type { Config } from "../schema/Config.js"
 import type { FileDiscoveryService } from "../services/FileDiscovery.js"
 import type { ImportIndexService } from "../services/ImportIndex.js"
-import { matchGlob } from "../util/glob.js"
+import { matchGlob } from "../utils/glob.js"
 
 /**
  * Execute boundary rules across project files.

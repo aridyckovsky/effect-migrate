@@ -36,20 +36,9 @@
  * ```
  *
  * @see {@link https://github.com/aridyckovsky/effect-migrate#amp-integration | Amp Integration Guide}
- * @module @effect-migrate/cli/amp
+ * @module @effect-migrate/core/amp
  */
 
-import type { Config, RuleResult } from "@effect-migrate/core"
-import {
-  AmpAuditContext,
-  type AmpAuditContext as AmpAuditContextType,
-  AmpContextIndex,
-  type AmpContextIndex as AmpContextIndexType,
-  SCHEMA_VERSION,
-  ThreadEntry,
-  type ThreadReference as ThreadReferenceType,
-  ThreadsFile
-} from "@effect-migrate/core/schema"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
 import * as Clock from "effect/Clock"
@@ -57,7 +46,22 @@ import * as Console from "effect/Console"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { readThreads } from "./thread-manager.js"
+import type { RuleResult } from "../rules/types.js"
+import {
+  AmpAuditContext,
+  type AmpAuditContext as AmpAuditContextType,
+  AmpContextIndex,
+  type AmpContextIndex as AmpContextIndexType,
+  ThreadEntry,
+  type ThreadReference as ThreadReferenceType,
+  ThreadsFile
+} from "../schema/amp.js"
+import type { Config } from "../schema/Config.js"
+import { SCHEMA_VERSION } from "../schema/versions.js"
+import { writeMetricsContext } from "./metrics-writer.js"
+import { normalizeResults } from "./normalizer.js"
+import { getPackageMeta } from "./package-meta.js"
+import { addThread, readThreads } from "./thread-manager.js"
 
 /**
  * Transform ThreadEntry to ThreadReference format.
@@ -87,6 +91,7 @@ import { readThreads } from "./thread-manager.js"
 const threadEntryToReference = (entry: ThreadEntry): ThreadReferenceType => ({
   url: entry.url,
   timestamp: entry.createdAt,
+  auditRevision: entry.auditRevision ?? 1,
   ...(entry.description && { description: entry.description }),
   ...(entry.tags && entry.tags.length > 0 && { tags: entry.tags }),
   ...(entry.scope && entry.scope.length > 0 && { scope: entry.scope })
@@ -115,86 +120,16 @@ export const toAuditThreads = (threadsFile: ThreadsFile): ReadonlyArray<ThreadRe
 }
 
 /**
- * Package JSON schema for validation.
- *
- * @category Schema
- * @since 0.2.0
- */
-const PackageJson = Schema.Struct({
-  version: Schema.String,
-  effectMigrate: Schema.optional(Schema.Struct({ schemaVersion: Schema.String }))
-})
-type PackageJson = Schema.Schema.Type<typeof PackageJson>
-
-/**
- * Package metadata interface.
- *
- * @category Types
- * @since 0.2.0
- */
-export interface PackageMeta {
-  readonly toolVersion: string
-  readonly schemaVersion: string
-}
-
-/**
- * TODO: This should fall back to something below our current working schema
- * insead of something a major version ahead.
- *
- * Get package metadata from package.json.
- *
- * Reads both version and schemaVersion from package.json at runtime.
- * Falls back to "1.0.0" for schemaVersion if effectMigrate.schemaVersion is not defined.
- *
- * @returns Effect containing toolVersion and schemaVersion
- * @category Effect
- * @since 0.2.0
- */
-const getPackageMeta = Effect.gen(function*() {
-  const fs = yield* FileSystem.FileSystem
-  const path = yield* Path.Path
-
-  // Resolve path to package.json relative to this file
-  // In production (build): build/esm/amp/context-writer.js -> ../../../package.json
-  // In test (tsx): src/amp/context-writer.ts (via tsx) -> ../../package.json
-  const dirname = path.dirname(new URL(import.meta.url).pathname)
-
-  // Try production path first (3 levels up)
-  let packageJsonPath = path.join(dirname, "..", "..", "..", "package.json")
-  const prodExists = yield* fs.exists(packageJsonPath)
-
-  // If not found, try dev/test path (2 levels up)
-  if (!prodExists) {
-    packageJsonPath = path.join(dirname, "..", "..", "package.json")
-  }
-
-  const content = yield* fs.readFileString(packageJsonPath).pipe(
-    Effect.catchAll(() => Effect.fail(new Error("package.json not found")))
-  )
-
-  const pkg = yield* Effect.try({
-    try: () => JSON.parse(content) as unknown,
-    catch: e => new Error(`Invalid JSON in ${packageJsonPath}: ${String(e)}`)
-  }).pipe(Effect.flatMap(Schema.decodeUnknown(PackageJson)))
-
-  return {
-    toolVersion: pkg.version,
-    schemaVersion: pkg.effectMigrate?.schemaVersion ?? "1.0.0"
-  }
-}).pipe(
-  Effect.catchAll(() => Effect.succeed({ toolVersion: "unknown", schemaVersion: "1.0.0" }))
-)
-
-/**
  * Get next audit revision number by incrementing existing revision.
  *
  * Attempts to load existing audit.json to extract current revision,
  * incrementing it by 1. Falls back to revision 1 for:
  * - New audits (file doesn't exist)
- * - Legacy audits (missing revision field)
- * - Parse failures (invalid JSON or schema)
+ * - Invalid audits (schema decode fails)
  *
- * Uses Effect combinators (no try/catch inside Effect.gen) for proper error handling.
+ * **No legacy support**: Files without proper schema are treated as revision 0.
+ *
+ * Uses Schema.decodeUnknown for strict validation (no duck-typing).
  *
  * @param outputDir - Directory where audit.json is stored
  * @returns Effect containing the next revision number
@@ -208,7 +143,7 @@ const getNextAuditRevision = (outputDir: string) =>
 
     const auditPath = path.join(outputDir, "audit.json")
 
-    // Try to read existing audit to get current revision
+    // Try to read and decode existing audit to get current revision
     const currentRevision = yield* fs.readFileString(auditPath).pipe(
       Effect.flatMap(content =>
         Effect.try({
@@ -216,10 +151,8 @@ const getNextAuditRevision = (outputDir: string) =>
           catch: e => new Error(`Invalid JSON in ${auditPath}: ${String(e)}`)
         })
       ),
-      Effect.map((data: any) => {
-        // Extract revision field, default to 0 for legacy files without revision
-        return typeof data.revision === "number" ? data.revision : 0
-      }),
+      Effect.flatMap(Schema.decodeUnknown(AmpAuditContext)),
+      Effect.map(audit => audit.revision),
       Effect.catchAll(() => Effect.succeed(0))
     )
 
@@ -244,7 +177,7 @@ const getNextAuditRevision = (outputDir: string) =>
  *
  * @example
  * ```typescript
- * import { writeAmpContext } from "@effect-migrate/cli/amp"
+ * import { writeAmpContext } from "@effect-migrate/core/amp"
  *
  * const program = Effect.gen(function* () {
  *   const results = yield* runAudit()
@@ -272,42 +205,87 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     // Get next audit revision (increments on each run)
     const revision = yield* getNextAuditRevision(outputDir)
 
-    // Group findings by file and rule
-    const byFile: Record<string, RuleResult[]> = {}
-    const byRule: Record<string, RuleResult[]> = {}
-
-    for (const result of results) {
-      // Group by file (convert to relative paths and normalize to POSIX)
-      if (result.file) {
-        const relativePath = path.relative(cwd, result.file)
-        const normalizedFile = relativePath.split(path.sep).join("/")
-        if (!byFile[normalizedFile]) {
-          byFile[normalizedFile] = []
+    // Pre-normalize file paths before calling normalizer
+    const normalizedInput: RuleResult[] = results.map(r =>
+      r.file
+        ? {
+          ...r,
+          file: path.relative(cwd, r.file).split(path.sep).join("/")
         }
-        byFile[normalizedFile].push(result)
+        : r
+    )
+    const findings = normalizeResults(normalizedInput)
+
+    // Auto-detect current Amp thread and add it to threads.json
+    const ampThreadId = process.env.AMP_CURRENT_THREAD_ID
+    if (ampThreadId) {
+      const threadUrl = `https://ampcode.com/threads/${ampThreadId}`
+
+      // Generate smart tags and description from findings
+      const { errors, warnings, info } = findings.summary
+      const filesCount = findings.files.length
+
+      // Count rule occurrences to find top 3 most frequent
+      const ruleCounts = new Map<number, number>()
+      for (const result of findings.results) {
+        ruleCounts.set(result.rule, (ruleCounts.get(result.rule) || 0) + 1)
       }
+      const topRules = Array.from(ruleCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([ruleIndex]) => `rule:${findings.rules[ruleIndex].id}`)
 
-      // Group by rule
-      if (!byRule[result.id]) {
-        byRule[result.id] = []
-      }
-      byRule[result.id].push(result)
-    }
+      // Build tags: base + severity counts + top rules
+      const tags = [
+        "amp-auto-detected",
+        "audit",
+        `errors:${errors}`,
+        `warnings:${warnings}`,
+        ...(info > 0 ? [`info:${info}`] : []),
+        ...topRules
+      ]
 
-    const errors = results.filter(r => r.severity === "error").length
-    const warnings = results.filter(r => r.severity === "warning").length
+      // Build description
+      const severityParts = [
+        `${errors} error${errors !== 1 ? "s" : ""}`,
+        `${warnings} warning${warnings !== 1 ? "s" : ""}`,
+        ...(info > 0 ? [`${info} info`] : [])
+      ]
+      const description = `Audit revision ${revision} — ${
+        severityParts.join(", ")
+      } across ${filesCount} file${filesCount !== 1 ? "s" : ""}`
 
-    // Read and attach threads if they exist
-    const threadsFile = yield* readThreads(outputDir).pipe(
-      Effect.catchAll(e =>
-        Console.error(`Failed to read threads: ${String(e)}`).pipe(
-          Effect.map(() => ({ version: 1, threads: [] }))
+      yield* addThread(
+        outputDir,
+        {
+          url: threadUrl,
+          tags,
+          description
+        },
+        revision
+      ).pipe(
+        Effect.catchAll(e =>
+          Console.warn(`Failed to auto-add Amp thread: ${String(e)}`).pipe(
+            Effect.map(() => undefined)
+          )
         )
       )
-    )
+    }
 
-    // Transform threads using type-safe mapping (validated by ThreadReference schema at encode time)
-    const auditThreads = toAuditThreads(threadsFile)
+    // Read threads file to get current thread entry (if any)
+    const threadsFile = yield* readThreads(outputDir)
+
+    // Find the thread entry for current revision (if it exists)
+    const currentThread = threadsFile.threads.find(t => t.auditRevision === revision)
+
+    // Transform current thread only (not all threads)
+    const auditThreads = currentThread
+      ? toAuditThreads({
+        schemaVersion: threadsFile.schemaVersion,
+        toolVersion: threadsFile.toolVersion,
+        threads: [currentThread]
+      })
+      : []
 
     // Create audit context (validated by schema) with conditional threads
     const auditContext: AmpAuditContextType = {
@@ -316,19 +294,10 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       toolVersion,
       projectRoot: ".",
       timestamp,
-      findings: {
-        byFile,
-        byRule,
-        summary: {
-          errors,
-          warnings,
-          totalFiles: Object.keys(byFile).length,
-          totalFindings: results.length
-        }
-      },
+      findings,
       config: {
-        rulesEnabled: Array.from(new Set(results.map(r => r.id))),
-        failOn: [...(config.report?.failOn ?? ["error"])]
+        rulesEnabled: Array.from(new Set(results.map(r => r.id))).sort(),
+        failOn: [...(config.report?.failOn ?? ["error"])].sort()
       },
       ...(auditThreads.length > 0 && { threads: auditThreads })
     }
@@ -349,6 +318,7 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
       timestamp,
       files: {
         audit: "audit.json",
+        metrics: "metrics.json",
         badges: "badges.md",
         ...(auditThreads.length > 0 && { threads: "threads.json" })
       }
@@ -362,44 +332,84 @@ export const writeAmpContext = (outputDir: string, results: RuleResult[], config
     const indexPath = path.join(outputDir, "index.json")
     yield* fs.writeFileString(indexPath, JSON.stringify(indexJson, null, 2))
 
-    // Generate badges.md for README integration
-    const errorBadge = errors === 0
-      ? "![errors](https://img.shields.io/badge/errors-0-success)"
-      : `![errors](https://img.shields.io/badge/errors-${errors}-critical)`
+    /**
+     * Generate badge with severity-consistent coloring.
+     *
+     * Color scheme:
+     * - error: always red (matches severity)
+     * - warning: always orange (matches severity)
+     * - info: always blue (matches severity)
+     * - total/rules: blue (informational)
+     *
+     * DRY helper to avoid badge generation duplication.
+     */
+    const makeBadge = (label: string, count: number, color: string) =>
+      `![${label}](https://img.shields.io/badge/${label}-${count}-${color})`
 
-    const warningBadge = warnings === 0
-      ? "![warnings](https://img.shields.io/badge/warnings-0-success)"
-      : `![warnings](https://img.shields.io/badge/warnings-${warnings}-yellow)`
+    const errorBadge = makeBadge("errors", findings.summary.errors, "red")
+    const warningBadge = makeBadge("warnings", findings.summary.warnings, "orange")
+    const infoBadge = makeBadge("info", findings.summary.info, "blue")
+    const totalBadge = makeBadge(
+      "total_findings",
+      findings.summary.errors + findings.summary.warnings + findings.summary.info,
+      "blue"
+    )
+    const rulesBadge = makeBadge("rules", findings.rules.length, "blue")
 
-    const badgesContent = `# Migration Status
+    const badgesContent = `# Effect Migration Status
 
-${errorBadge} ${warningBadge}
+${errorBadge} ${warningBadge} ${infoBadge} ${totalBadge} ${rulesBadge}
 
-Last updated: ${new Date().toLocaleString()}
+**Last updated:** ${new Date().toLocaleString()}  
+**Audit revision:** ${revision}
+
+---
 
 ## Summary
 
-- **Errors**: ${errors}
-- **Warnings**: ${warnings}
-- **Files checked**: ${Object.keys(byFile).length}
+| Metric | Count |
+|--------|-------|
+| Errors | ${findings.summary.errors} |
+| Warnings | ${findings.summary.warnings} |
+| Info | ${findings.summary.info} |
+| Total findings | ${findings.summary.errors + findings.summary.warnings + findings.summary.info} |
+| Files affected | ${findings.files.length} |
+| Active rules | ${findings.rules.length} |
+
+## Top Issues
+
+${
+      findings.rules
+        .slice(0, 5)
+        .map(rule => `- **[${rule.id}]** (${rule.severity}): ${rule.message}`)
+        .join("\n")
+    }
+
+---
 
 ## Using with Amp
 
-Reference this context in your Amp threads:
+Reference this migration context in your Amp threads:
 
 \`\`\`
 I'm working on migrating this project to Effect.
-Read @${outputDir}/audit.json for current migration state.
+Read @${outputDir}/index.json for the complete migration context.
 \`\`\`
 
-Amp will automatically understand:
-- Which files have migration issues
+**Amp will automatically understand:**
+- Current audit findings and violations ([audit.json](./audit.json))
+- Migration metrics and progress ([metrics.json](./metrics.json))
+- Historical threads where work occurred ([threads.json](./threads.json))
 - What patterns to avoid (based on active rules)
-- Migration progress and severity breakdown
+
+This context persists across threads, eliminating the need to re-explain migration status.
 `
 
     const badgesPath = path.join(outputDir, "badges.md")
     yield* fs.writeFileString(badgesPath, badgesContent)
+
+    // Write metrics.json
+    yield* writeMetricsContext(outputDir, results, config, revision)
 
     // Log completion
     yield* Console.log(`  ✓ audit.json (revision ${revision})`)

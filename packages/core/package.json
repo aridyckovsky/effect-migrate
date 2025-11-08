@@ -43,7 +43,9 @@
     "pack": "build-utils pack-v4",
     "test": "vitest",
     "test:ci": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
+    "typecheck:src": "tsc -b tsconfig.src.json",
+    "typecheck:test": "tsc -b tsconfig.test.json",
     "lint": "eslint . --max-warnings 0 && prettier --check \"**/*.{json,md,yml,yaml}\"",
     "lint:fix": "eslint . --fix && prettier --write \"**/*.{json,md,yml,yaml}\""
   },

@@ -1,12 +1,4 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "composite": true,
-    "noEmit": false,
-    "rootDir": "./src",
-    "outDir": "./build/esm",
-    "tsBuildInfoFile": "./build/.tsbuildinfo"
-  },
-  "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "**/__tests__/**", "node_modules"]
+  "files": [],
+  "references": [{ "path": "./tsconfig.src.json" }, { "path": "./tsconfig.test.json" }]
 }

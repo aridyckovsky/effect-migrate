@@ -12,6 +12,22 @@ import type * as Effect from "effect/Effect"
 import type { Location, Range, Severity } from "../types.js"
 
 /**
+ * All valid rule kinds.
+ *
+ * @category Rule System
+ * @since 0.1.0
+ */
+export const RULE_KINDS = ["pattern", "boundary", "docs", "metrics"] as const
+
+/**
+ * Rule kind type derived from RULE_KINDS constant.
+ *
+ * @category Rule System
+ * @since 0.1.0
+ */
+export type RuleKind = typeof RULE_KINDS[number]
+
+/**
  * Execution context provided to rules during run.
  *
  * Provides lazy access to files, imports, and configuration. All file
@@ -77,7 +93,7 @@ export interface RuleResult {
   id: string
 
   /** Rule kind for categorization */
-  ruleKind: "pattern" | "boundary" | "docs" | "metrics"
+  ruleKind: RuleKind
 
   /** Human-readable message */
   message: string
@@ -131,7 +147,7 @@ export interface Rule {
   id: string
 
   /** Rule category */
-  kind: "pattern" | "boundary" | "docs" | "metrics"
+  kind: RuleKind
 
   /** Execute rule check */
   run: (ctx: RuleContext) => Effect.Effect<RuleResult[], any>
@@ -161,5 +177,19 @@ export interface Preset {
   rules: Rule[]
 
   /** Default configuration overrides */
-  defaults?: Partial<any> // Will be Config type
+  defaults?: {
+    paths?: {
+      root?: string
+      exclude?: string[]
+      include?: string[]
+    }
+    concurrency?: number
+    report?: {
+      failOn?: readonly ("error" | "warning")[]
+      warnOn?: readonly ("error" | "warning")[]
+    }
+    migrations?: ReadonlyArray<unknown>
+    docs?: unknown
+    extensions?: Record<string, unknown>
+  }
 }

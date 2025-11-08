@@ -28,6 +28,8 @@ export interface MetricsData {
   errors: number
   /** Count of warning-severity violations */
   warnings: number
+  /** Count of info-severity violations */
+  info: number
   /** Count of unique files with violations */
   filesWithIssues: number
   /** Per-rule breakdown sorted by violation count descending */
@@ -65,6 +67,7 @@ export const calculateMetrics = (results: RuleResult[]): MetricsData => {
   const totalIssues = results.length
   const errors = results.filter(r => r.severity === "error").length
   const warnings = results.filter(r => r.severity === "warning").length
+  const info = results.filter(r => r.severity === "info").length
   const filesWithIssues = new Set(results.map(r => r.file).filter(Boolean)).size
 
   // Calculate rule breakdown
@@ -86,6 +89,7 @@ export const calculateMetrics = (results: RuleResult[]): MetricsData => {
     totalIssues,
     errors,
     warnings,
+    info,
     filesWithIssues,
     ruleBreakdown
   }
@@ -155,6 +159,7 @@ export const formatMetricsOutput = (data: MetricsData): string => {
     { label: "Total Violations", current: data.totalIssues, target: 0 },
     { label: "Error-level Issues", current: data.errors, target: 0 },
     { label: "Warning-level Issues", current: data.warnings, target: 0 },
+    { label: "Info-level Issues", current: data.info, target: 0 },
     { label: "Files Affected", current: data.filesWithIssues, target: 0 }
   ]
 
@@ -209,7 +214,9 @@ export const formatMetricsOutput = (data: MetricsData): string => {
     for (const rule of data.ruleBreakdown.slice(0, 10)) {
       const severityBadge = rule.severity === "error"
         ? chalk.red.bold("ERROR  ")
-        : chalk.yellow.bold("WARNING")
+        : rule.severity === "warning"
+        ? chalk.yellow.bold("WARNING")
+        : chalk.blue.bold("INFO   ")
 
       const countDisplay = rule.count > 10
         ? chalk.red(rule.count.toString())

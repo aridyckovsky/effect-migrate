@@ -1,10 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "composite": false,
+    "composite": true,
     "noEmit": true,
-    "types": ["vitest/globals"]
+    "tsBuildInfoFile": "./build/.tsbuildinfo.test",
+    "types": ["vitest/globals", "node"]
   },
-  "include": ["test/**/*", "src/**/*"],
-  "exclude": ["node_modules", "build", "test/fixtures/**"]
+  "references": [{ "path": "./tsconfig.src.json" }],
+  "include": ["test/**/*.ts"],
+  "exclude": ["node_modules", "build"]
 }

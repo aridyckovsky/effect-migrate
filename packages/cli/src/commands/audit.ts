@@ -34,9 +34,12 @@ import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
+import * as Logger from "effect/Logger"
+import * as LogLevel from "effect/LogLevel"
 import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { formatConsoleOutput } from "../formatters/console.js"
 import { formatJsonOutput } from "../formatters/json.js"
+import { PresetLoaderWorkspaceLive } from "../layers/PresetLoaderWorkspace.js"
 import { loadRulesAndConfig } from "../loaders/rules.js"
 
 /**
@@ -82,10 +85,14 @@ export const auditCommand = Command.make(
   ({ config: configPath, json, strict, ampOut }) =>
     Effect.gen(function*() {
       // Load configuration, presets, and construct all rules
-      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath)
+      const { rules, config: effectiveConfig } = yield* loadRulesAndConfig(configPath).pipe(
+        Effect.provide(PresetLoaderWorkspaceLive)
+      )
 
       if (rules.length === 0) {
-        yield* Console.log("⚠️  No rules configured")
+        if (!json) {
+          yield* Console.log("⚠️  No rules configured")
+        }
         return 0
       }
 
@@ -95,18 +102,20 @@ export const auditCommand = Command.make(
 
       // Format output
       if (json) {
-        const output = formatJsonOutput(results, effectiveConfig)
+        const output = yield* formatJsonOutput(results, effectiveConfig)
         yield* Console.log(JSON.stringify(output, null, 2))
       } else {
         const output = formatConsoleOutput(results, effectiveConfig)
         yield* Console.log(output)
       }
 
-      // Write Amp context if requested
+      // Write Amp context if requested (suppress log in JSON mode)
       yield* withAmpOut(ampOut, outDir =>
         Effect.gen(function*() {
           yield* writeAmpContext(outDir, results, effectiveConfig)
-          yield* Console.log(`\n✓ Wrote Amp context to ${outDir}`)
+          if (!json) {
+            yield* Console.log(`\n✓ Wrote Amp context to ${outDir}`)
+          }
         }))
 
       // Determine exit code
@@ -119,19 +128,27 @@ export const auditCommand = Command.make(
         (strict && (errors.length > 0 || warnings.length > 0))
 
       if (shouldFail) {
-        yield* Console.error(`\n❌ Audit failed`)
+        if (!json) {
+          yield* Console.error(`\n❌ Audit failed`)
+        }
         return 1
       }
 
-      yield* Console.log(`\n✓ Audit passed`)
+      if (!json) {
+        yield* Console.log(`\n✓ Audit passed`)
+      }
       return 0
     }).pipe(
-      Effect.provide(RuleRunnerLayer),
       Effect.catchAll(error =>
         Effect.gen(function*() {
-          yield* Console.error(`Audit failed: ${error}`)
+          if (!json) {
+            yield* Console.error(`Audit failed: ${error}`)
+          }
           return 1
         })
-      )
+      ),
+      Effect.provide(RuleRunnerLayer),
+      // Suppress progress logs when outputting JSON
+      json ? Logger.withMinimumLogLevel(LogLevel.None) : Effect.tap(() => Effect.void)
     )
 )

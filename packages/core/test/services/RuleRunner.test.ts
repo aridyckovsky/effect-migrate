@@ -1,6 +1,6 @@
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as Path from "@effect/platform/Path"
-import { expect, it, layer } from "@effect/vitest"
+import { expect, layer } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { makeBoundaryRule, makePatternRule } from "../../src/rules/helpers.js"

@@ -14,6 +14,8 @@ related:
 
 # PR2: Normalized Schema (Breaking Change)
 
+**Revision in https://ampcode.com/threads/T-5e5f8f6b-421d-4845-ad99-f1ff067baf9e.**
+
 ## Goal
 
 Reduce audit.json file size by 50-70% through deduplication with a clean break from legacy schema.
@@ -22,7 +24,7 @@ Reduce audit.json file size by 50-70% through deduplication with a clean break f
 
 **Priority:** P0 (Wave 1, Foundation)
 
-**Dependencies:** PR1 (Version Registry)
+**Dependencies:** ✅ PR #40 (Version Registry - MERGED in v0.3.0)
 
 ---
 
@@ -31,12 +33,14 @@ Reduce audit.json file size by 50-70% through deduplication with a clean break f
 Current audit.json duplicates every RuleResult object in both `byFile` and `byRule` groupings, creating 100% duplication. For projects with 10k findings, this wastes ~500KB+.
 
 **Solution:** Normalize data structure with:
+
 - `rules[]` - Rule metadata stored once
 - `files[]` - File paths stored once
 - `results[]` - Compact results with index references
 - `groups.byFile`, `groups.byRule` - Index-based grouping
 
 **Breaking Change:**
+
 - ONLY write normalized structure
 - No legacy `findings.byFile` or `findings.byRule` fields
 - Consumers must migrate to new schema
@@ -53,7 +57,7 @@ Current audit.json duplicates every RuleResult object in both `byFile` and `byRu
 ```typescript
 /**
  * Normalized audit schema - reduces duplication by ~50-70%.
- * 
+ *
  * @module @effect-migrate/cli/amp/normalized-schema
  * @since 0.3.0
  */
@@ -66,19 +70,19 @@ import * as Schema from "effect/Schema"
 export const RuleDef = Schema.Struct({
   /** Rule ID */
   id: Schema.String,
-  
+
   /** Rule kind */
   kind: Schema.Literal("pattern", "boundary", "custom"),
-  
+
   /** Severity level */
   severity: Schema.Literal("error", "warning"),
-  
+
   /** Human-readable message template */
   message: Schema.String,
-  
+
   /** Documentation URL */
   docsUrl: Schema.optional(Schema.String),
-  
+
   /** Rule tags */
   tags: Schema.optional(Schema.Array(Schema.String))
 })
@@ -87,14 +91,14 @@ export type RuleDef = Schema.Schema.Type<typeof RuleDef>
 
 /**
  * Compact range tuple: [startLine, startCol, endLine, endCol]
- * 
+ *
  * Saves ~40 bytes per result vs nested objects.
  */
 export const CompactRange = Schema.Tuple(
   Schema.Number, // startLine
   Schema.Number, // startColumn
   Schema.Number, // endLine
-  Schema.Number  // endColumn
+  Schema.Number // endColumn
 )
 
 export type CompactRange = Schema.Schema.Type<typeof CompactRange>
@@ -105,13 +109,13 @@ export type CompactRange = Schema.Schema.Type<typeof CompactRange>
 export const CompactResult = Schema.Struct({
   /** Index into rules[] array */
   rule: Schema.Number,
-  
+
   /** Index into files[] array (undefined for file-less results) */
   file: Schema.optional(Schema.Number),
-  
+
   /** Compact range tuple */
   range: Schema.optional(CompactRange),
-  
+
   /** Custom message override (if different from rule template) */
   message: Schema.optional(Schema.String)
 })
@@ -124,13 +128,13 @@ export type CompactResult = Schema.Schema.Type<typeof CompactResult>
 export const NormalizedFindings = Schema.Struct({
   /** Deduplicated rule definitions */
   rules: Schema.Array(RuleDef),
-  
+
   /** Deduplicated file paths */
   files: Schema.Array(Schema.String),
-  
+
   /** Compact results referencing rules/files by index */
   results: Schema.Array(CompactResult),
-  
+
   /** Index-based groupings */
   groups: Schema.Struct({
     /** Map of file index → result indices */
@@ -138,14 +142,14 @@ export const NormalizedFindings = Schema.Struct({
       key: Schema.String, // Stringified number
       value: Schema.Array(Schema.Number)
     }),
-    
+
     /** Map of rule index → result indices */
     byRule: Schema.Record({
       key: Schema.String, // Stringified number
       value: Schema.Array(Schema.Number)
     })
   }),
-  
+
   /** Summary stats */
   summary: Schema.Struct({
     errors: Schema.Number,
@@ -167,13 +171,18 @@ export type NormalizedFindings = Schema.Schema.Type<typeof NormalizedFindings>
 ```typescript
 /**
  * Normalization and expansion functions for audit results.
- * 
+ *
  * @module @effect-migrate/cli/amp/normalizer
  * @since 0.3.0
  */
 
 import type { RuleResult } from "@effect-migrate/core"
-import type { RuleDef, CompactResult, CompactRange, NormalizedFindings } from "./normalized-schema.js"
+import type {
+  RuleDef,
+  CompactResult,
+  CompactRange,
+  NormalizedFindings
+} from "./normalized-schema.js"
 
 /**
  * Normalize RuleResults into deduplicated structure.
@@ -182,7 +191,7 @@ export const normalizeResults = (results: readonly RuleResult[]): NormalizedFind
   // Build deduplicated rules array
   const ruleMap = new Map<string, { def: RuleDef; index: number }>()
   const rules: RuleDef[] = []
-  
+
   for (const result of results) {
     if (!ruleMap.has(result.id)) {
       const def: RuleDef = {
@@ -197,27 +206,27 @@ export const normalizeResults = (results: readonly RuleResult[]): NormalizedFind
       rules.push(def)
     }
   }
-  
+
   // Build deduplicated files array
   const fileMap = new Map<string, number>()
   const files: string[] = []
-  
+
   for (const result of results) {
     if (result.file && !fileMap.has(result.file)) {
       fileMap.set(result.file, files.length)
       files.push(result.file)
     }
   }
-  
+
   // Build compact results
   const compactResults: CompactResult[] = []
   const byFileGroups: Record<string, number[]> = {}
   const byRuleGroups: Record<string, number[]> = {}
-  
+
   for (const result of results) {
     const ruleInfo = ruleMap.get(result.id)!
     const fileIndex = result.file ? fileMap.get(result.file) : undefined
-    
+
     const compactRange: CompactRange | undefined = result.range
       ? [
           result.range.start.line,
@@ -226,7 +235,7 @@ export const normalizeResults = (results: readonly RuleResult[]): NormalizedFind
           result.range.end.column
         ]
       : undefined
-    
+
     const compact: CompactResult = {
       rule: ruleInfo.index,
       ...(fileIndex !== undefined && { file: fileIndex }),
@@ -234,23 +243,23 @@ export const normalizeResults = (results: readonly RuleResult[]): NormalizedFind
       // Only include custom message if it differs from template
       ...(result.message !== ruleInfo.def.message && { message: result.message })
     }
-    
+
     const resultIndex = compactResults.length
     compactResults.push(compact)
-    
+
     // Group by file
     if (fileIndex !== undefined) {
       const key = fileIndex.toString()
       if (!byFileGroups[key]) byFileGroups[key] = []
       byFileGroups[key].push(resultIndex)
     }
-    
+
     // Group by rule
     const ruleKey = ruleInfo.index.toString()
     if (!byRuleGroups[ruleKey]) byRuleGroups[ruleKey] = []
     byRuleGroups[ruleKey].push(resultIndex)
   }
-  
+
   // Compute summary
   const summary = {
     errors: results.filter((r) => r.severity === "error").length,
@@ -258,7 +267,7 @@ export const normalizeResults = (results: readonly RuleResult[]): NormalizedFind
     totalFiles: files.length,
     totalFindings: results.length
   }
-  
+
   return {
     rules,
     files,
@@ -281,14 +290,14 @@ export const expandResult = (
 ): RuleResult => {
   const rule = rules[compact.rule]
   const file = compact.file !== undefined ? files[compact.file] : undefined
-  
+
   const range = compact.range
     ? {
         start: { line: compact.range[0], column: compact.range[1] },
         end: { line: compact.range[2], column: compact.range[3] }
       }
     : undefined
-  
+
   return {
     id: rule.id,
     ruleKind: rule.kind,
@@ -300,7 +309,6 @@ export const expandResult = (
     ...(rule.tags && { tags: rule.tags })
   }
 }
-
 ```
 
 ---
@@ -324,7 +332,7 @@ export const expandResult = (
     toolVersion: Schema.String,
     projectRoot: Schema.String,
     timestamp: Schema.DateTimeUtc,
-    
+
 -   findings: Schema.Struct({
 -     byFile: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResult) }),
 -     byRule: Schema.Record({ key: Schema.String, value: Schema.Array(RuleResult) }),
@@ -332,7 +340,7 @@ export const expandResult = (
 -   }),
 +   /** Normalized findings (v2 schema) */
 +   normalized: NormalizedFindings,
-    
+
     config: ConfigSummary,
     threads: Schema.optional(Schema.Array(ThreadInfo))
   })
@@ -360,15 +368,15 @@ export const expandResult = (
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem
       const path = yield* Path.Path
-      
+
       // ... existing setup code ...
-      
+
       const revision = (existingAudit?.revision ?? existingAudit?.version ?? 0) + 1
-      
+
 -     // Group findings by file and rule
 -     const byFile: Record<string, RuleResult[]> = {}
 -     const byRule: Record<string, RuleResult[]> = {}
--     
+-
 -     for (const result of results) {
 -       if (result.file) {
 -         if (!byFile[result.file]) byFile[result.file] = []
@@ -377,17 +385,17 @@ export const expandResult = (
 -       if (!byRule[result.id]) byRule[result.id] = []
 -       byRule[result.id].push(result)
 -     }
--     
+-
 -     const summary = {
 -       errors: results.filter((r) => r.severity === "error").length,
 -       warnings: results.filter((r) => r.severity === "warning").length,
 -       totalFiles: Object.keys(byFile).length,
 -       totalFindings: results.length
 -     }
-      
+
 +     // Normalize findings
 +     const normalized = normalizeResults(results)
-      
+
       // Build audit context
       const auditContent: AmpAuditContext = {
         schemaVersion: SCHEMA_VERSIONS.audit,
@@ -406,13 +414,13 @@ export const expandResult = (
           ? [{ id: process.env.AMP_THREAD_ID, timestamp }]
           : undefined
       }
-      
+
       // Write audit.json
       yield* fs.writeFileString(
         path.join(outputDir, "audit.json"),
         JSON.stringify(auditContent, null, 2)
       )
-      
+
       yield* Console.log(`✓ Wrote Amp context to ${outputDir}`)
 +     yield* Console.log(`  Normalized: ${normalized.results.length} results, ${normalized.rules.length} rules, ${normalized.files.length} files`)
     })
@@ -658,7 +666,7 @@ describe("size reduction", () => {
 
     // Measure JSON sizes
     const normalizedSize = JSON.stringify({ normalized }).length
-    
+
     // Estimate legacy size (duplicated byFile and byRule views)
     const estimatedLegacySize = normalizedSize * 2.2 // Approximation
 
@@ -718,11 +726,13 @@ cat .amp/test/audit.json | jq '.normalized | keys'
 ## Files Summary
 
 **New files:**
+
 - `packages/cli/src/amp/normalized-schema.ts` (~100 lines)
 - `packages/cli/src/amp/normalizer.ts` (~180 lines)
 - `packages/cli/test/amp/normalizer.test.ts` (~250 lines)
 
 **Modified files:**
+
 - `packages/cli/src/amp/schema.ts` (+10 lines)
 - `packages/cli/src/amp/context-writer.ts` (+15 lines, -25 lines)
 
@@ -735,7 +745,7 @@ cat .amp/test/audit.json | jq '.normalized | keys'
 ### Expected Size Reduction
 
 | Findings | Files | Rules | Legacy Size | Normalized Size | Reduction |
-|----------|-------|-------|-------------|-----------------|-----------|
+| -------- | ----- | ----- | ----------- | --------------- | --------- |
 | 100      | 10    | 5     | ~25 KB      | ~12 KB          | 52%       |
 | 1,000    | 50    | 10    | ~250 KB     | ~120 KB         | 52%       |
 | 10,000   | 200   | 50    | ~2.5 MB     | ~1.2 MB         | 52%       |
@@ -743,6 +753,7 @@ cat .amp/test/audit.json | jq '.normalized | keys'
 ### Breakdown of Savings
 
 **Per finding (average ~250 bytes in legacy format):**
+
 - Rule metadata: ~80 bytes → 0 bytes (stored once)
 - File path: ~20 bytes → 0 bytes (stored once)
 - Range object: ~60 bytes → ~20 bytes (tuple)
@@ -757,6 +768,7 @@ cat .amp/test/audit.json | jq '.normalized | keys'
 **Breaking Change:** The legacy `findings.byFile` and `findings.byRule` fields are removed. Consumers must use the new normalized schema.
 
 **New way (required):**
+
 ```typescript
 const audit = JSON.parse(fs.readFileSync("audit.json", "utf-8"))
 const normalized = audit.normalized
@@ -777,7 +789,7 @@ const expandResult = (compactResult) => {
         end: { line: compactResult.range[2], column: compactResult.range[3] }
       }
     : undefined
-  
+
   return { ...rule, file, range, message: compactResult.message ?? rule.message }
 }
 
@@ -801,6 +813,7 @@ for (const [ruleIndexStr, resultIndices] of Object.entries(normalized.groups.byR
 ## Next Steps
 
 After this PR merges:
+
 1. **PR3** can use normalized schema for checkpoints
 2. **PR6** can leverage compact structure for SQLite storage
 3. Documentation update with migration examples

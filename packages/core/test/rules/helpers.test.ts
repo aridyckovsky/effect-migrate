@@ -1,3 +1,13 @@
+/**
+ * Rule Helpers Test Suite
+ *
+ * Tests for makePatternRule and makeBoundaryRule helper functions.
+ * These tests cover the underlying PatternEngine and BoundaryEngine implementations,
+ * which are internal implementation details not exported from the public API.
+ *
+ * Pattern tests verify regex matching, file filtering, line/column calculation, and negation.
+ * Boundary tests verify import detection, architectural constraint enforcement, and glob patterns.
+ */
 import { describeWrapped, expect } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import { makeBoundaryRule, makePatternRule } from "../../src/rules/helpers.js"
