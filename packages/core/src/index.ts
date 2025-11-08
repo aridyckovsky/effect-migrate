@@ -45,6 +45,16 @@ export type { Metric } from "./types.js"
 // ============================================================================
 
 /**
+ * Rule kind schema for validation.
+ */
+export { RuleKindSchema } from "./rules/types.js"
+
+/**
+ * Rule kind type (pattern, boundary, docs, metrics).
+ */
+export type { RuleKind } from "./rules/types.js"
+
+/**
  * Context provided to rules during execution.
  * Includes file access, import index, and config.
  */
@@ -493,6 +503,41 @@ export { addThread } from "./amp/thread-manager.js"
  * Read all tracked thread references.
  */
 export { readThreads } from "./amp/thread-manager.js"
+
+/**
+ * Generate filesystem-safe checkpoint ID from DateTime.
+ */
+export { generateCheckpointId } from "./amp/checkpoint-manager.js"
+
+/**
+ * Compute delta statistics between two FindingsSummary objects.
+ */
+export { computeDelta } from "./amp/checkpoint-manager.js"
+
+/**
+ * List recent checkpoints (newest first, sliced to limit).
+ */
+export { listCheckpoints } from "./amp/checkpoint-manager.js"
+
+/**
+ * Read checkpoint manifest from directory.
+ */
+export { readManifest } from "./amp/checkpoint-manager.js"
+
+/**
+ * Write checkpoint manifest to directory.
+ */
+export { writeManifest } from "./amp/checkpoint-manager.js"
+
+/**
+ * Read and decode a checkpoint file.
+ */
+export { readCheckpoint } from "./amp/checkpoint-manager.js"
+
+/**
+ * Create a new checkpoint with findings and config snapshot.
+ */
+export { createCheckpoint } from "./amp/checkpoint-manager.js"
 
 // ============================================================================
 // Preset Loading
