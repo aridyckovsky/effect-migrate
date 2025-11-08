@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 
-import { getPackageMeta } from "@effect-migrate/core"
+import { getPackageMeta, ProcessInfoLive, Time } from "@effect-migrate/core"
 import * as Command from "@effect/cli/Command"
 import * as HelpDoc from "@effect/cli/HelpDoc"
 import * as Span from "@effect/cli/HelpDoc/Span"
 import * as NodeContext from "@effect/platform-node/NodeContext"
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import { normalizeAmpOutFlag } from "./amp/normalizeArgs.js"
 import { auditCommand } from "./commands/audit.js"
+import { checkpointsCommand } from "./commands/checkpoints.js"
 import { initCommand } from "./commands/init.js"
 import { metricsCommand } from "./commands/metrics.js"
 import { threadCommand } from "./commands/thread.js"
@@ -21,14 +24,20 @@ const mainCommand = Command.make("effect-migrate", {}, () =>
   }))
 
 const cli = mainCommand.pipe(
-  Command.withSubcommands([auditCommand, initCommand, metricsCommand, threadCommand])
+  Command.withSubcommands([
+    auditCommand,
+    checkpointsCommand,
+    initCommand,
+    metricsCommand,
+    threadCommand
+  ])
 )
 
 // Normalize --amp-out bare flag to --amp-out= for parser compatibility
 const argv = normalizeAmpOutFlag(process.argv)
 
 // Main program with proper Effect composition
-const program = Effect.gen(function*() {
+const main = Effect.gen(function*() {
   // Get package version from package.json
   const { toolVersion } = yield* getPackageMeta
 
@@ -52,7 +61,17 @@ const program = Effect.gen(function*() {
   )
 )
 
-program.pipe(Effect.provide(NodeContext.layer), NodeRuntime.runMain)
+// Build application layer with all dependencies
+// Time.Default requires Clock - provide it explicitly
+// ProcessInfoLive has no requirements
+// NodeContext.layer provides FileSystem, Path, Terminal, etc.
+const AppLayer = Layer.mergeAll(
+  NodeContext.layer,
+  ProcessInfoLive,
+  Time.Default
+).pipe(Layer.provideMerge(Layer.succeed(Clock.Clock, Clock.make())))
+
+NodeRuntime.runMain(main.pipe(Effect.provide(AppLayer)))
 
 // ============================================================================
 // Public Exports (for library usage)

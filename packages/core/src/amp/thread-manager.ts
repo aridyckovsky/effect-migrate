@@ -11,13 +11,12 @@
 
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
-import * as Clock from "effect/Clock"
 import * as Console from "effect/Console"
-import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as AmpSchema from "../schema/amp.js"
 import { SCHEMA_VERSION } from "../schema/versions.js"
+import * as Time from "../services/Time.js"
 import { getPackageMeta } from "./package-meta.js"
 
 // Strict thread URL pattern: http(s)://ampcode.com/threads/T-{uuid-v4}
@@ -346,15 +345,14 @@ export const addThread = (
 ): Effect.Effect<
   { added: boolean; merged: boolean; current: ThreadEntry },
   Error,
-  FileSystem.FileSystem | Path.Path
+  FileSystem.FileSystem | Path.Path | Time.Time
 > =>
   Effect.gen(function*() {
     // Validate URL and extract normalized ID
     const { id, url } = yield* validateThreadUrl(input.url)
 
-    // Get current timestamp from Clock service
-    const now = yield* Clock.currentTimeMillis
-    const createdAt = DateTime.unsafeMake(now)
+    // Get current timestamp from Time service
+    const createdAt = yield* Time.nowUtc
 
     // Get toolVersion for threads.json
     const { toolVersion } = yield* getPackageMeta
