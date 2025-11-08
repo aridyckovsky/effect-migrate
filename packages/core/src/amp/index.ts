@@ -15,5 +15,7 @@ export {
   normalizeResults,
   rebuildGroups
 } from "./normalizer.js"
+export { getPackageMeta } from "./package-meta.js"
+export type { PackageMeta } from "./package-meta.js"
 export { addThread, readThreads, validateThreadUrl } from "./thread-manager.js"
 export type { ThreadsFile } from "./thread-manager.js"
