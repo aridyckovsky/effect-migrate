@@ -10,6 +10,7 @@
 
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Path from "@effect/platform/Path"
+import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -93,5 +94,9 @@ export const getPackageMeta = Effect.gen(function*() {
     schemaVersion: pkg.effectMigrate?.schemaVersion ?? "1.0.0"
   }
 }).pipe(
-  Effect.catchAll(() => Effect.succeed({ toolVersion: "unknown", schemaVersion: "1.0.0" }))
+  Effect.catchAll(error =>
+    Console.warn(`Failed to read package.json, using defaults: ${error}`).pipe(
+      Effect.as({ toolVersion: "unknown", schemaVersion: "1.0.0" })
+    )
+  )
 )

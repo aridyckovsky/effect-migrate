@@ -289,7 +289,7 @@ export { ConfigLoadError } from "./schema/loader.js"
  * ```ts
  * import { SCHEMA_VERSION } from "@effect-migrate/core"
  *
- * console.log(SCHEMA_VERSION) // "0.2.0"
+ * yield* Console.log(SCHEMA_VERSION) // "0.2.0"
  * ```
  */
 export { SCHEMA_VERSION } from "./schema/index.js"

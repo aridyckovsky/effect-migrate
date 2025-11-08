@@ -3,6 +3,7 @@ import * as Args from "@effect/cli/Args"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as Console from "effect/Console"
+import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 
 const ampOutOption = Options.text("amp-out").pipe(
@@ -55,7 +56,7 @@ const checkpointsListCommand = Command.make(
         const deltaStr = cp.delta
           ? `${cp.delta.totalFindings >= 0 ? "+" : ""}${cp.delta.totalFindings}`
           : "-"
-        const timestampStr = String(cp.timestamp)
+        const timestampStr = DateTime.formatIso(cp.timestamp)
         const threadStr = cp.thread ?? "-"
 
         yield* Console.log(
@@ -98,7 +99,7 @@ const checkpointsLatestCommand = Command.make(
 
       const latest = checkpoints[0]
       yield* Console.log(`Latest checkpoint: ${latest.id}`)
-      yield* Console.log(`Timestamp: ${String(latest.timestamp)}`)
+      yield* Console.log(`Timestamp: ${DateTime.formatIso(latest.timestamp)}`)
       yield* Console.log(
         `Errors: ${latest.summary.errors}, Warnings: ${latest.summary.warnings}, Info: ${latest.summary.info}`
       )
@@ -137,7 +138,7 @@ const checkpointsShowCommand = Command.make(
       } else {
         yield* Console.log(`Checkpoint: ${checkpoint.checkpointId}`)
         yield* Console.log(`Revision: ${checkpoint.revision}`)
-        yield* Console.log(`Timestamp: ${String(checkpoint.timestamp)}`)
+        yield* Console.log(`Timestamp: ${DateTime.formatIso(checkpoint.timestamp)}`)
 
         if (checkpoint.thread) {
           yield* Console.log(`Thread: ${checkpoint.thread}`)

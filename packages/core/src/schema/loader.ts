@@ -90,7 +90,11 @@ export const loadConfig = (configPath: string) =>
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
 
-    const exists = yield* fs.exists(configPath).pipe(Effect.catchAll(() => Effect.succeed(false)))
+    const exists = yield* fs.exists(configPath).pipe(
+      Effect.catchAll(error =>
+        Effect.logDebug(`Error checking config file existence: ${error}`).pipe(Effect.as(false))
+      )
+    )
 
     if (!exists) {
       return yield* Effect.fail(
