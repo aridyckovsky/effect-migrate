@@ -77,7 +77,7 @@ export const loadRulesAndConfig = (
 > =>
   Effect.gen(function*() {
     // Load configuration (from core)
-    yield* Console.log("🔍 Loading configuration...")
+    yield* Effect.logInfo("🔍 Loading configuration...")
     const config = yield* loadConfig(configPath).pipe(
       Effect.catchAll(error =>
         Effect.gen(function*() {
@@ -92,7 +92,7 @@ export const loadRulesAndConfig = (
     let presetDefaults: Record<string, unknown> = {}
 
     if (config.presets && config.presets.length > 0) {
-      yield* Console.log(`📦 Loading ${config.presets.length} preset(s)...`)
+      yield* Effect.logInfo(`📦 Loading ${config.presets.length} preset(s)...`)
 
       const loader = yield* PresetLoader
       const result = yield* loader.loadPresets(config.presets).pipe(
@@ -116,7 +116,7 @@ export const loadRulesAndConfig = (
     // Combine preset rules with config rules
     const allRules = [...presetRules, ...configRules]
 
-    yield* Console.log(`✓ Loaded ${allRules.length} rule(s)`)
+    yield* Effect.logInfo(`✓ Loaded ${allRules.length} rule(s)`)
 
     return {
       rules: allRules,

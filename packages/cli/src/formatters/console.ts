@@ -124,6 +124,7 @@ ${chalk.green("All checks passed successfully.")}
   // Summary
   const errors = results.filter(r => r.severity === "error")
   const warnings = results.filter(r => r.severity === "warning")
+  const info = results.filter(r => r.severity === "info")
 
   lines.push(chalk.cyan("─".repeat(60)))
   lines.push(chalk.bold.cyan("  SUMMARY"))
@@ -135,9 +136,13 @@ ${chalk.green("All checks passed successfully.")}
   const warningsDisplay = warnings.length > 0
     ? chalk.yellow(warnings.length.toString())
     : chalk.green(warnings.length.toString())
+  const infoDisplay = info.length > 0
+    ? chalk.blue(info.length.toString())
+    : chalk.green(info.length.toString())
 
   lines.push(`  Errors:   ${errorsDisplay}`)
   lines.push(`  Warnings: ${warningsDisplay}`)
+  lines.push(`  Info:     ${infoDisplay}`)
   lines.push(`  Total:    ${results.length}`)
   lines.push("")
 

@@ -32,8 +32,12 @@ import { RuleRunner, RuleRunnerLayer } from "@effect-migrate/core"
 import { writeMetricsContext } from "@effect-migrate/core/amp"
 import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
+import * as FileSystem from "@effect/platform/FileSystem"
+import * as Path from "@effect/platform/Path"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
+import * as Logger from "effect/Logger"
+import * as LogLevel from "effect/LogLevel"
 import { ampOutOption, withAmpOut } from "../amp/options.js"
 import { calculateMetrics, formatMetricsOutput } from "../formatters/metrics.js"
 import { PresetLoaderWorkspaceLive } from "../layers/PresetLoaderWorkspace.js"
@@ -97,13 +101,31 @@ export const metricsCommand = Command.make(
       // Write Amp context if requested
       yield* withAmpOut(ampOut, outDir =>
         Effect.gen(function*() {
-          yield* writeMetricsContext(outDir, results, effectiveConfig)
+          const fs = yield* FileSystem.FileSystem
+          const path = yield* Path.Path
+
+          // Get current revision from audit.json (or default to 1)
+          const auditPath = path.join(outDir, "audit.json")
+          const revision = yield* fs.readFileString(auditPath).pipe(
+            Effect.flatMap(content =>
+              Effect.try({
+                try: () => JSON.parse(content) as { revision?: number },
+                catch: () => ({ revision: 1 })
+              })
+            ),
+            Effect.map(data => data.revision ?? 1),
+            Effect.catchAll(() => Effect.succeed(1))
+          )
+
+          yield* writeMetricsContext(outDir, results, effectiveConfig, revision)
           yield* Console.log(`\n✓ Wrote Amp metrics to ${outDir}`)
         }))
 
       return 0
     }).pipe(
       Effect.provide(RuleRunnerLayer),
+      // Suppress progress logs when outputting JSON
+      json ? Logger.withMinimumLogLevel(LogLevel.None) : Effect.tap(() => Effect.void),
       Effect.catchAll(error =>
         Effect.gen(function*() {
           yield* Console.error(`Metrics failed: ${error}`)
