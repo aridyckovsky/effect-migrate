@@ -14,6 +14,7 @@ import { auditCommand } from "./commands/audit.js"
 import { checkpointsCommand } from "./commands/checkpoints.js"
 import { initCommand } from "./commands/init.js"
 import { metricsCommand } from "./commands/metrics.js"
+import { normsCommand } from "./commands/norms.js"
 import { threadCommand } from "./commands/thread.js"
 
 const mainCommand = Command.make("effect-migrate", {}, () =>
@@ -29,6 +30,7 @@ const cli = mainCommand.pipe(
     checkpointsCommand,
     initCommand,
     metricsCommand,
+    normsCommand,
     threadCommand
   ])
 )

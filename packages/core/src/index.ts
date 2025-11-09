@@ -540,6 +540,34 @@ export { readCheckpoint } from "./amp/checkpoint-manager.js"
 export { createCheckpoint } from "./amp/checkpoint-manager.js"
 
 // ============================================================================
+// Norms Capture
+// ============================================================================
+
+/**
+ * Norms capture types for defining project conventions.
+ */
+export type * from "./norms/types.js"
+
+/**
+ * Error types for norms capture operations.
+ */
+export * from "./norms/errors.js"
+
+/**
+ * Pure functions for norms extraction and processing.
+ */
+export * from "./norms/pure.js"
+
+/**
+ * Directory summarizer service for generating norms documentation.
+ */
+export {
+  DirectorySummarizer,
+  DirectorySummarizerLive,
+  type DirectorySummarizerService
+} from "./norms/DirectorySummarizer.js"
+
+// ============================================================================
 // Preset Loading
 // ============================================================================
 

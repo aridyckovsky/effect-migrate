@@ -14,6 +14,14 @@ import { RuleKindSchema } from "../rules/types.js"
 import { Semver } from "./common.js"
 
 /**
+ * Severity schema for rule results.
+ *
+ * @category Schema
+ * @since 0.1.0
+ */
+export const Severity = Schema.Literal("error", "warning", "info")
+
+/**
  * Rule result schema matching RuleResult from @effect-migrate/core.
  *
  * Defines the structure of a single migration rule violation or finding,
@@ -28,7 +36,7 @@ export const RuleResultSchema = Schema.Struct({
   /** Rule type (pattern, boundary, etc.) */
   ruleKind: RuleKindSchema,
   /** Severity level */
-  severity: Schema.Literal("error", "warning", "info"),
+  severity: Severity,
   /** Human-readable message */
   message: Schema.String,
   /** File path where violation occurred */
@@ -144,7 +152,7 @@ export const RuleDef = Schema.Struct({
   /** Rule type (pattern, boundary, docs, metrics) */
   kind: RuleKindSchema,
   /** Severity level */
-  severity: Schema.Literal("error", "warning", "info"),
+  severity: Severity,
   /** Human-readable message */
   message: Schema.String,
   /** Documentation URL */
@@ -579,7 +587,7 @@ export const RuleMetrics = Schema.Struct({
   /** Number of violations */
   violations: Schema.Number,
   /** Severity level */
-  severity: Schema.Literal("error", "warning", "info"),
+  severity: Severity,
   /** Files affected by this rule */
   filesAffected: Schema.Number
 })
